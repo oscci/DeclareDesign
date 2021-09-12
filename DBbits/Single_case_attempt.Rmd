@@ -1,0 +1,190 @@
+---
+title: "single_case_eg"
+author: "Dorothy Bishop"
+date: "12/09/2021"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+options(digits=2)
+library(knitr)
+library(kableExtra)
+library(gridExtra)
+library(DeclareDesign)
+library(tidyverse)
+library(fabricatr)
+library(randomizr)
+library(estimatr)
+```
+
+## Single case experimental designs (SCEDs)
+
+In some disciplines, notably those where intervention is used with populations that are highly heterogeneous, single case experimental designs (SCEDs) are a set of procedures that are widely used in preference to randomised controlled trials (RCTs). At the extremes, these are radically different approaches to evaluating an intervention, using within-subjects versus between-subjects approaches to analysis respectively. The term 'single case' can be misleading; SCEDs are not case reports; they use experimental control and often involve more than one participant, creating a case series. The emphasis, however, is on individual outcomes rather than the group average. 
+
+@best2019 compared the advantages and disadvantages of the two approaches, noting differences in cost and scale (substantially larger for RCTs), as well as different approaches to experimental controls - via use of a control group in RCTs, as opposed to contrasts between time periods or outcomes in SCEDs. Of particular interest here are the differing conclusions that can be drawn from RCTs, where "If a difference between groups is found, this is in the group average; the intervention is not necessarily beneficial for all those that are treated", as opposed to SCEDs, where "The findings are applicable on a case by case basis and are analysed for each participant separately."  
+
+This kind of weighing up of pros and cons of different experimental designs is precisely what DeclareDesign aims to do, within a formal framework that requires specification of the underlying assumptions of different approaches, and uses simulated data to compare them on a set of criteria specified by the researcher. The goal is to evaluate designs so that they can be optimised for a given research question. This becomes particularly interesting when one considers that the polarised distinction between RCTs and SCEDs is not absolute, and there is growing interest in combining the two approaches in hybrid designs.  
+
+Here I aim to apply the MIDA approach of DeclareDesign to SCEDs. MIDA stands for Model, Inquiry, Data Strategy and Answer Strategy, with the first two elements being theoretical and the second two empirical. This way of conceptualising intervention studies is quite foreign to most researchers, who tend to focus simply on selecting a research design and analytic method. Its value, however, becomes apparent as soon as we look in detail at the comparisons of methods laid out by @best2019, because it allows us to categorise the different aspects of the two study types as belonging to specific parts of the overall research design.  
+
+I will take as my starting point a study by @calder2021.  This is described as a RCT, but is actually a hybrid design that grew out of previous SCED studies by the authors on the same topic, which is evaluation of an intervention to help language-disordered children use grammatical endings correctly. The design of the study can be grasped by showing the plot of results. 
+
+```{r calderfig,echo=F,include=T,warning=F,message=F,fig.leg = "Mean % correct for two groups in Calder et al, 2021. Data plotted from Table 2."}
+#Original plot created for intervention book
+
+knitr::include_graphics("calderfig.png")
+
+```
+
+The study adopts a waitlist control design and contains two groups studied across 7 phases.  Both groups are initially assessed during a baseline period (Phases 1-2). Group 1 receives intervention during phase 3 and is then assessed again in phases 4 and 5. Group 2 continues untreated during phases 3-4, which count as an extended baseline, but is treated during phase 5, with post-intervention assessment during phases 6 and 7.  Assessment is made using three type of probe item. Past tense -ed probes assess the grammatical morpheme that was trained in the intervention, whereas 3rd person singular and possessive 's probes assess untrained morphemes. On each occasion, 10 probes of each kind were administered.  
+
+The design resembles a cross-over RCT, insofar as both groups receive intervention at different periods, first Group 1 and then Group 2, and Group 1 ceases intervention at the point when Group 2 starts it. However, unlike in a standard cross-over design, the expectation is that the effects of intervention will persist after the intervention ceases, so Group 1 is not anticipated to return to baseline levels. This complicates the analysis.  
+
+The design also has elements of a SCED. There are two ways in which intervention effects can be estimated within subjects: first, by comparing the baseline and post-intervention periods; second, by comparing percentages correct on probes for trained items (past tense -ed) versus probes for untrained items. If intervention effects were simply placebo effects, we would expect to see gains on all item types.  
+
+To start simple, I will break this design down into components that can be independently evaluated.  We can then see how including additional components of the design affects its efficiency. Let us start with the within-subjects SCED comparison of performance pre- and post-intervention. We can collapse across the two groups and focus on the comparison of scores for the 2 baseline measures preceding intervention and the 2 post-intervention measures. We will focus solely on the treated past tense -ed outcome. Note that this design on its own is unsatisfactory for guarding against systematic bias from practice or developmental effects, and cannot distinguish a specific intervention effect from a placebo effect. Nevertheless, we will start simple, and then build up from there.  Let us see how we could specify this design in the MIDA framework.
+
+## Using the MIDA framework with a pre-post SCED  
+
+### Model  
+
+@humphreys2021 note that the Model is concerned with "what causes what and how" and that "it includes guesses about how important variables are generated, how things are correlated, and the sequences of events." The Model has much in common with the notion of a hypothesis, but it is much more detailed than a typical hypothesis, because it requires detailed specification of details of the population and outcomes. Furthermore, the Model is not a single hypothesis; rather it includes a range of hypotheses. One would be the null hypothesis, that intervention is ineffective, another that the intervention leads to improvement on trained constructions. Yet another might be that there are nonspecific treatment effects (placebo effects) which lead to improvement on all constructions, whether trained or not.  In addition, we need to specify the characteristics of the population the model applies to: in this case children with Developmental Language Disorder, of a given age range. 
+
+An interesting point here, though, is that models for RCTs and SCEDs diverge in terms of how improvement is conceptualised. For a RCT, the focus is on the average improvement; a Model might state that we expect average improvement of 20% on the score for trained constructions. For SCED the assumption is that there will be heterogeneity in responses that we wish to incorporate in the model. Thus we would postulate that a proportion, p, of individuals are unresponsive to intervention, whereas the remainder do respond - so we'd have a mixture of null and non-null results. If we simulate results from these two models, we might find they are hard to tell apart - but DeclareDesign should help us diagnose which methods are best at making such a distinction.
+
+We can also include in the SCED model information about the characteristics of responders. For instance prior research showed that children who have difficulty producing certain speech sounds failed to progress on the intervention used by @calder2021. For now, however, we will keep things simple and just assume the model specifies the population of interest, the sample size, with random allocation to Group 1 and Group 2. Initial baseline scores are also included in the model. Since 10 items are used for each probe, we can simulate these by selecting a number at random from 0 to 10. To match the original study, we convert these numbers to percentages by multiplying by 10. Note that @calder2021 excluded two cases who performed at ceiling at baseline; we can use baseline scores to exclude those who score 100%. We will also simulate here a speech production variable which could be used to predict outcome: this is a simple pass/fail score, and it is assumed 80% of participants pass.  
+
+A key component of the model is the potential outcomes, which will depend on the intervention group. Because we have a series of 4 timepoints, two before and two after intervention, we need first to consider how these are related. It is realistic to assume that scores will be auto-correlated, i.e. someone who has a high score at time 1 will tend to have a high score at times 2-4, regardless of intervention. We can simulate this situation by specifying a degree of correlation between successive time points. We then add a treatment effect, tau, to the post-intervention phase. 
+
+```{r modelA,echo=T}
+#First decide on the size of population of interest.
+# For Calder et al, this might be all the children with DLD in the language units they sampled from, e.g. 150
+
+
+M <- declare_model(
+  N = 150, #population size - this is just a guestimate of all the children who could have been included
+  Z = 1, #in this design, all cases receive intervention 
+  X1 = 10*sample(0:10,N,replace=T), #baseline % correct
+  X2 = rbinom(N,1,.8), #score on speech production test; pass/fail - potential covariate for later on
+  tau = runif(1,min=0,max=1), # treatment effect - here specified to vary at random from 0 to 1
+  p = .75, #proportion who respond to treatment. 
+  responder =  rbinom(N,1,p), #specifies which cases show treatment effect
+  U = rnorm(N), #random error (U for unknown)
+  r = .7, #estimated correlation between successive measures without any intervention
+  Y2 = r*X1+sqrt(1-r^2)*U, #X1 is baseline measure, Y2 is 2nd baseline, correlates with X1
+  Y3 = r*Y2+sqrt(1-r^2)*U, #Y3 is first post-intervention measure, correlates with Y2
+  Y4 = r*Y3+sqrt(1-r^2)*U, #Y4 is 2nd post-intervention measure, correlates with Y3
+  #Now do potential outcomes for post-intervention measures - everyone treated, so just have Z_1
+  Y3_Z_1 <- Y3+Z*tau*X1, #treatment effect added to Y3
+  Y4_Z_1 <- Y4+Z*tau*X1, #treatment effect added to Y4
+  #ensure all values bounded at 100%
+  if(Y2>100)Y2=100,
+  if(Y3_Z_1>100)Y3_Z_1=100,
+  if(Y4_Z_1>100)Y4_Z_1=100
+)
+  
+
+```
+
+### Inquiry  
+The second theoretical component of the design is the Inquiry, i.e. the question that we ask of the Model. In an RCT, it is usually, what is the average effect of intervention. In a SCED, however, we ask which individuals benefited from the intervention.  We have to decide on a criterion to use to judge who improved. This has been a topic of considerable debate in the literature on SCEDs. If we have only two baseline measures and two post-intervention measures, as in this example, we could use a very simple index, i.e. whether there is any overlap between the two sets of scores. An alternative option would be to take a numerical cutoff, e.g. whether the mean post-intervention cutoff is at least 25% higher than the pre-intervention cutoff.  We show here the Inquiry for the first of these options.
+
+```{r inquiryA, echo=T}
+I <- declare_inquiry(
+  maxPre <- max(  X1_Z_1,Y2_Z_1),
+  minPost <- min(  Y3_Z_1,Y4_Z_1),
+  improved <-which(maxPre<minPost)
+)
+
+```
+
+Both of these criteria for improvement might seem like rather inadequate and unsophisticated methods. The beauty of DeclareDesign is that it allows us to test whether such misgivings are justified, because we can see exactly how our Inquiry performs under various scenarios specified in the model. In particular, we can check:  
+- How often does the method lead us to conclude that a person has improved with intervention when the null hypothesis is true, i.e. there is no benefit from intervention. This is the False Positive rate.  
+- How often does the method correctly indicate which persons have improved with intervention when tau has been set to a nonzero value. This is analogous to the power of the approach.  
+
+We can also check how far the performance of the method improves if we modify the Model to include more datapoints, e.g. if there are 3 or 4 measures at baseline and/or post-intervention.  
+
+### Data Strategy  
+
+@humphreys2021 note that the data strategy can include decisions about any or all of: 
+- Sampling: the procedure for selecting which units will be measured; 
+- Assignment: the procedure for allocating treatments to sampled units;
+- Measurement: the procedure for turning information about the sampled units into data. 
+
+```{r dataA,echo=T}
+# Sample from the population defined in M
+
+D <- declare_sampling(
+  Sall = 23, #sample size prior to attrition
+  Xall = sample(N,Sall,replace=F), #select S cases from population
+  w<-which(Xall==100), #identify those at ceiling
+  XS = Xall[-w], #exclude those at ceiling
+  S = length(XS) #S is new sample size
+)
+```
+
+### Answer strategy  
+The answer strategy is applied to the empirical data to answer the inquiry. 
+There are numerous ways in which an answer can be determined, most of which involve applying a standard statistical test. In our simple example, however, we use a very crude index and so do not need to do more than count.  
+
+```{r answerA,echo=T}
+
+A <- declare_estimator(table(responder,improved))
+#This table indicates how many improved, as well as how good correspondence is between the true status of individuals as responders, and their identification as an improved case.  
+```
+
+Attempt to put it all together and look at a simulated dataset (chunk below) crashes with 
+Error: Error in step 1 (): Error in working_data_list[[names(tmp)[j]]] <- tmp[[j]]: attempt to select less than one element in OneIndex
+
+```{r designA,echo=T}
+designA <-
+  M +
+  I +
+  D +
+  A
+
+mydraw <- draw_data(designA) #single simulated dataset
+```
+This error also occurs if I take the pre-post example from DeclareDesign and just allocate the first set of allocations to M. 
+So actually, it seems simpler NOT to declare things in the MIDA steps?
+Will try another approach now based on the pre-post example.
+
+# Pretest posttest example as template, attempt to modify for SCED
+```{r modelA,echo=T}
+N <- 150
+ate <- 1 #average treatment effect (items correct)
+mysd <- 3.1 #this is SD of randomly selected N correct from 10 items
+r = .7 #estimated correlation between successive measures without any intervention
+p = .75 #estimated proportion of population who learn
+
+
+population <- declare_population(N = N, u_t1= sample(0:10,N,replace=T), #N correct based on 10 trials
+                                        u_t2 = round(r*u_t1+sqrt(1-r^2)*mysd+2*rnorm(N),0),
+                                        u_t3 = round(r*u_t2+sqrt(1-r^2)*mysd+2*rnorm(N),0),
+                                        u_t4 = round(r*u_t3+sqrt(1-r^2)*mysd+2*rnorm(N),0),
+                                        Y_t1 = u_t1, #baseline measure 1
+                                        Y_t2 = u_t2,#baseline measure 2
+                                        Z = rep(1,N),#all are treated
+                                        R   = rbinom(N,1,p), #treatment responder
+                                        Y_t3 = u_t3 + ate * Z*R,
+                                        Y_t4 = u_t4 + ate * Z*R)
+#potential_outcomes <- declare_potential_outcomes(
+
+
+estimand <- declare_inquiry(olap = max(Y_t1,Y_t2)>min(Y_t3,Y_t4))
+
+#assignment <- declare_assignment(Z = 1)
+#reveal_t2 <- declare_reveal(Y_t2)
+#manipulation <- declare_step(difference = (Y_t2 - Y_t1), 
+#                             handler = fabricate)
+outcome <- declare_estimator(table(olap,R)) #will show case by case agreement between olap and whether true learner
+
+pretest_posttest_design <- population  + 
+  estimand + 
+  outcome
+
+#Takeaways
+mydraw <- draw_data(pretest_posttest_design) #single simulated dataset
+diagnosis <- diagnose_design(pretest_posttest_design, sims = 25)
+```
