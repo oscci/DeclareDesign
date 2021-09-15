@@ -158,28 +158,27 @@ There are numerous ways in which an answer can be determined, most of which invo
 
 ```{r answerA,echo=T}
 A <- declare_estimator(
-  correctcat ~ 1, model = lm_robust, inquiry = "meancorrcat") #This is responder/nonresponder categorisation correct
-A2 <- declare_estimator(
-  correctbusk ~ 1, model = lm_robust, label = "meancorrbusk") #This is categorisation by busk
+  correctcat ~ 1, model = lm_robust, inquiry = "meancorrcat",label="meancorrcat") + #This is responder/nonresponder categorisation correct
+ declare_estimator(
+  correctbusk ~ 1, model = lm_robust, inquiry = "meancorrbusk",label="meancorrbusk") #This is categorisation by busk
 
 
 #to see results of this step:
-A(D(m))
+#A(D(m))
 #A2(D(m))
 
 
 ```
 
 
-```{r designA,echo=T}
-designA2 <-
+```{r design,echo=T}
+design <-
   M +
   I +
   D +
-  A +
-  A2
+  A 
 
-mydraw <- draw_data(designA2) #single simulated dataset
+mydraw <- draw_data(design) #single simulated dataset
 
 #Plot results of single draw to check whether they look like real data
 yvals <- c(mean(mydraw$Y1_1),mean(mydraw$Y2_1),mean(mydraw$Y1_2_Z),mean(mydraw$Y2_2_Z))
@@ -203,7 +202,7 @@ row.names(myt)<-c('Non-responder','Responder')
 colnames(myt)<-c('Busk0','Busk1')
 myt
 
-draw_estimates(designA2) %>% kable()
+draw_estimates(design) %>% kable()
 
 
 
@@ -231,18 +230,18 @@ sd_estimate = sd(estimate),
 mean_estimand = mean(estimand))
 
 
-diagnose_design(designA2) %>% reshape_diagnosis() %>% kable()
+diagnose_design(design) %>% reshape_diagnosis() %>% kable()
 
 
 #To see repeated estimates from design:
-simulations <- simulate_design(designA2, sims = 100)
+simulations <- simulate_design(design, sims = 100)
 
 ```
 
 Now we can tweak aspects of model to see the effect
 
 ```{r tweakmodel}
-dotweak <-0
+dotweak <-0 #make this optional as it is slow
 if(dotweak==1){
 designs <- redesign(designA,
                     p=seq(.3,.9,.2),
