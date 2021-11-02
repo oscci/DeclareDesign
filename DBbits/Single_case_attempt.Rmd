@@ -1,7 +1,7 @@
 ---
 title: "single_case_eg"
 author: "Dorothy Bishop"
-date: "13/09/2021"
+date: "started 13/09/2021, today 2/11/2021"
 output: html_document
 ---
 
@@ -17,13 +17,14 @@ library(tidyverse)
 library(fabricatr)
 library(randomizr)
 library(estimatr)
+library(psych)
 ```
 
 ## Single case experimental designs (SCEDs)
 
 In some disciplines, notably those where intervention is used with populations that are highly heterogeneous, single case experimental designs (SCEDs) are a set of procedures that are widely used in preference to randomised controlled trials (RCTs). At the extremes, these are radically different approaches to evaluating an intervention, using within-subjects versus between-subjects analyses respectively. The term 'single case' can be misleading; SCEDs are not case reports; they use experimental control and often involve more than one participant, creating a case series. The emphasis, however, is on individual outcomes rather than the group average. 
 
-@best2019 compared the advantages and disadvantages of the two approaches, noting differences in cost and scale (substantially larger for RCTs), as well as different approaches to experimental controls - via use of a control group in RCTs, as opposed to contrasts between time periods or outcomes in SCEDs. Of particular interest here are the differing conclusions that can be drawn from RCTs, where "If a difference between groups is found, this is in the group average; the intervention is not necessarily beneficial for all those that are treated", as opposed to SCEDs, where "The findings are applicable on a case by case basis and are analysed for each participant separately."  
+@best2019 compared the advantages and disadvantages of the two approaches, noting differences in cost and scale (substantially larger for RCTs), as well as different approaches to experimental controls - via use of a control group in RCTs, as opposed to contrasts between time periods or outcomes in SCEDs. Best noted the differing conclusions that can be drawn from RCTs, where "If a difference between groups is found, this is in the group average; the intervention is not necessarily beneficial for all those that are treated", as opposed to SCEDs, where "The findings are applicable on a case by case basis and are analysed for each participant separately."  
 
 This kind of weighing up of pros and cons of different experimental designs is precisely what DeclareDesign aims to do, within a formal framework that requires specification of the underlying assumptions of different approaches, and uses simulated data to compare them on a set of criteria specified by the researcher. The goal is to evaluate designs so that they can be optimised for a given research question. This becomes particularly interesting when one considers that the polarised distinction between RCTs and SCEDs is not absolute, and there is growing interest in combining the two approaches in hybrid designs.  
 
@@ -36,7 +37,7 @@ I will take as my starting point a study by @calder2021.  This is described as a
 knitr::include_graphics("calderfig.png")
 ```
 
-The study adopts a waitlist control design and contains two groups studied across 7 phases.  Both groups are initially assessed during a baseline period (Phases 1-2). Group 1 receives intervention during phase 3 and is then assessed again in phases 4 and 5. Group 2 continues untreated during phases 3-4, which count as an extended baseline, but is treated during phase 5, with post-intervention assessment during phases 6 and 7.  Assessment is made using three type of probe item. Past tense -ed probes assess the grammatical morpheme that was trained in the intervention, whereas 3rd person singular and possessive 's probes assess untrained morphemes. On each occasion, 10 probes of each kind were administered.  
+The study adopts a waitlist control design and contains two groups studied across 7 phases.  Both groups are initially assessed during a baseline period (Phases 1-2). Group 1 receives intervention during phase 3 and is then assessed again in phases 4 and 5. Group 2 continues untreated during phases 3-4, which count as an extended baseline, but is treated during phase 5, with post-intervention assessment during phases 6 and 7.  Assessment is made using three type of probe item. Past tense -ed probes assess the grammatical morpheme that was trained in the intervention, whereas 3rd person singular and possessive 's probes assess untrained morphemes. On each occasion, 30 probes of each kind were administered - these were subdivided according to the phonological form of the inflection, but we will not consider that aspect here.  
 
 The design resembles a cross-over RCT, insofar as both groups receive intervention at different periods, first Group 1 and then Group 2, and Group 1 ceases intervention at the point when Group 2 starts it. However, unlike in a standard cross-over design, the expectation is that the effects of intervention will persist after the intervention ceases, so Group 1 is not anticipated to return to baseline levels.
 
@@ -56,7 +57,56 @@ We can also include in the SCED model information about the characteristics of r
 
 A key component of the model is the potential outcomes, which depend on the intervention group. In this simulation everyone receives the intervention, and so all responders should show improvement. We simulate this by adding a treatment effect, tau, to the post-intervention phase for those who are identified as treatment responders.  
 
-Because we have a series of 4 timepoints, two before and two after intervention, we need to consider how these are related. It is realistic to assume that scores will be auto-correlated, i.e. someone who has a high score at time 1 will tend to have a high score at times 2-4, regardless of intervention. We can simulate this situation by specifying a degree of correlation between successive time points. 
+Because we have a series of 4 timepoints, two before and two after intervention, we need to consider how these are related. It is realistic to assume that scores will be auto-correlated, i.e. someone who has a high score at time 1 will tend to have a high score at times 2-4, regardless of intervention. We can simulate this situation by specifying a degree of correlation between successive time points.  
+
+For this analysis, we can base these parameters on those observed in real data (raw data kindly provided by Samuel Calder).  
+
+```{r readrawdata,echo=F}
+#Calder's data was reformatted using the readjslhr script, to create a .csv file with inflection type and group in long form.  NB One participant with no data at followup is excluded; also one measure of .111 was modified to .1, as .111 not compatible with 30 items.
+calderdat <- read.csv('CalderRaw.csv')
+
+#Note also that group 2 had 3 assessments pre intervention and 2 after, whereas group 1 had 2 before and 2 after. No indication of any improvement between sessions 1-2 for group 2, so comparison could be between their 1st 2 and last 2. 
+
+calderdat$pre1 <- calderdat$T1
+calderdat$pre2 <- calderdat$T2
+calderdat$pre1[calderdat$group==2]<-calderdat$T3[calderdat$group==2]
+calderdat$pre2[calderdat$group==2]<-calderdat$T4[calderdat$group==2]
+calderdat$post1 <- calderdat$T4
+calderdat$post2 <- calderdat$T5
+calderdat$post1[calderdat$group==2]<-calderdat$T6[calderdat$group==2]
+calderdat$post2[calderdat$group==2]<-calderdat$T7[calderdat$group==2]
+
+w<-which(colnames(calderdat)=='pre1')
+cormat <- cor(calderdat[calderdat$morph=='ed',w:(w+3)])
+myr <- cormat[2,1] #correlation for -ed items is around .7
+calderdat$premean<-(calderdat$pre1+calderdat$pre2)/2
+calderdat$postmean<-(calderdat$post1+calderdat$post2)/2
+calderdat$change <- calderdat$postmean-calderdat$premean
+
+
+
+caldersummary <- describeBy(calderdat[,15:17],group=calderdat$morph,mat=TRUE)
+caldersummary
+
+calderdat$groupmorph<-paste0('g',calderdat$group,calderdat$morph)
+caldersummary2 <- describeBy(calderdat[,2:8],group=calderdat$groupmorph,mat=TRUE)
+caldersummary2
+
+#It turns out that on the -ed structure, everyone improves, so it's obvious even on a simple sign test. 
+#On 3s 16/20 improve - so this is a more interesting one to consider in terms of whether one can identify the subset who improve (and distinguish from changes just due to random error)
+#On poss 15/20 improve - but some get markedly worse. 
+
+#Just checking if improvement seen within pre or post
+calderdat$pre2.1 <-calderdat$pre2-calderdat$pre1
+calderdat$post2.1 <-calderdat$post2-calderdat$post1
+
+caldersummary3 <- describeBy(calderdat[,19:20],group=calderdat$morph,mat=TRUE)
+caldersummary3
+
+#No evidence of any gains between the two pre-test or two post-test sessions, except for pre on possessives
+#This could therefore be modelled by specifying a latent measure for pre and for post, and then having measures selected to be correlated with latent measure
+```
+
 
 ```{r specifygeneralparameters,echo=F}
   p = .5 #proportion who respond to treatment. Can vary this.
@@ -65,7 +115,8 @@ Because we have a series of 4 timepoints, two before and two after intervention,
   startprob =.4
   buskcut = 1 #cutoff for categorising using Busk d [?arbitrary value]
   Nmeasures = 3 #N measures pre(baseline) and post-intervention; so far set so can be 2 or 3
-  r = .5 #estimated correlation between successive measures without any intervention
+  nitems = 30 #N items per inflection
+  r = myr #estimated correlation between successive measures without any intervention
 ```
 
 ```{r model,echo=T}
@@ -284,9 +335,9 @@ axis(1, at = 1:4)
 text(1.5,0,'Pre-intervention',cex=.8)
 text(3.5,0,'Post-intervention',cex=.8)
 
-#The plot colour codes each person, according to whether they really are a responder or nonresponder, and how they are classifed by the busk criterion. So Misclassified resp is a responder who was misclassified as non-responder
+#The plot colour codes each person, according to whether they really are a responder or nonresponder, and how they are classified by the busk criterion. So Misclassified resp is a responder who was misclassified as non-responder
 
-## How are overlap and responder status related
+## How are overlap and responder status related?
 ## Of course overall depends on both treatment effects and responder status
 
 #This table based on most recent draw: indicates how many improved, as well as how good correspondence is between the true (latent) status of individuals as responders, and their identification as an improved case (with no overlap). 
