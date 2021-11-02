@@ -104,39 +104,40 @@ caldersummary3 <- describeBy(calderdat[,19:20],group=calderdat$morph,mat=TRUE)
 caldersummary3
 
 #No evidence of any gains between the two pre-test or two post-test sessions, except for pre on possessives
-#This could therefore be modelled by specifying a latent measure for pre and for post, and then having measures selected to be correlated with latent measure
+
 ```
 
 
 ```{r specifygeneralparameters,echo=F}
   p = .5 #proportion who respond to treatment. Can vary this.
-  mineffect = 3 #used in definition of treatment effect; n items increase in score
-  maxeffect = 5 #used in definition of treatment effect
-  startprob =.4
+  mineffect = 2 #used in definition of treatment effect; n items increase in score
+  maxeffect = 15 #used in definition of treatment effect
+  startprobvals =c(.2,.7) #initial probability correct will vary from person to person - actual value will be assigned at random by taking value between this range and squaring it - this will give a skewed distribution
   buskcut = 1 #cutoff for categorising using Busk d [?arbitrary value]
   Nmeasures = 3 #N measures pre(baseline) and post-intervention; so far set so can be 2 or 3
-  nitems = 30 #N items per inflection
+  nitem = 30 #N items per inflection
   r = myr #estimated correlation between successive measures without any intervention
+  npts <- 2 # N observations pre and posttest
 ```
 
 ```{r model,echo=T}
 #Original model with 2 time points for pre and 2 for post
 #First decide on the size of population of interest.
 # For Calder et al, this might be all the children with DLD in the language units they sampled from, e.g. 150
-
+if (npts==2){
 M <- declare_model(
 
-  N = 150, #population size - this is just a guestimate of all the children who could have been included
+  N = 150, #population size - this is just a guestimate of all the children who *could* have been included
   Z = 1, #in this design, all cases receive intervention 
-  W = rbinom(N, 1, .8), # score on speech production test; pass/fail - potential covariate for later on. Ignore here.
-  tau = round(runif(N, min = mineffect, max = maxeffect),0), # treatment effect - here specified to vary at random for each person from min to max. These values selected to give data that resemble Calder et al (though does depend on proportion of responders as well as max and min)
+   tau = round(runif(N, min = mineffect, max = maxeffect),0), # treatment effect - here specified to vary at random for each person from min to max. These values selected to give data that resemble Calder et al (though does depend on proportion of responders as well as max and min)
   #tau = 0,  #set tau to zero to see what results look like if treatment is ineffective for everyone.
   responder = rbinom(N, 1, p), #specifies which cases show treatment effect; this will be a proportion of people based on p.  NB this is a latent variable that we cannot observe, but we try to infer it from the data.
+  startprob = runif(N,min=startprobvals[1],max=startprobvals[2])^2, #values are squared to give a skewed distribution
   U = 2*rnorm(N), #random error (U for unknown) #multiplied by 2 just to give realistic amount of variation across people. 
 
-  Y1_1 = rbinom(N,10,startprob), #baseline % correct as binomial where startprob is prob of item correct
-Y2_1 = r*Y1_1+sqrt(1-r^2)*U, #Y1_1 is baseline measure, Y2_1 is 2nd baseline, correlates with Y1_1 with correlation r
-  Y1_2 = r*Y2_1+sqrt(1-r^2)*U, #Y1_2 is first post-intervention measure, correlates with Y3_1
+  Y1_1 = rbinom(N,nitems,startprob), #baseline % correct as binomial where startprob is prob of item correct
+  Y2_1 = r*Y1_1+sqrt(1-r^2)*U, #Y1_1 is baseline measure, Y2_1 is 2nd baseline, correlates with Y1_1 with correlation r
+  Y1_2 = r*Y2_1+sqrt(1-r^2)*U, #Y1_2 is first post-intervention measure, correlates with Y2_1
   Y2_2 = r*Y1_2+sqrt(1-r^2)*U, #Y2_2 is 2nd post-intervention measure, correlates with Y1_2
 
   #Now do potential outcomes for post-intervention measures - everyone treated, so Z is 1. 
@@ -144,9 +145,9 @@ Y2_1 = r*Y1_1+sqrt(1-r^2)*U, #Y1_1 is baseline measure, Y2_1 is 2nd baseline, co
   Y2_2_Z = Y2_2+Z*tau*responder, #treatment effect added to Y2_2
   # ensure all values bounded between 0 and 10 and are whole numbers
 
-  Y2_1 = if_else(Y2_1 > 10, 10, round(Y2_1,0)),
-  Y1_2_Z = if_else(Y1_2_Z>10, 10, round(Y1_2_Z,0)),
-  Y2_2_Z = if_else(Y2_2_Z>10, 10, round(Y2_2_Z,0)),
+  Y2_1 = if_else(Y2_1 > nitem, nitem, round(Y2_1,0)),
+  Y1_2_Z = if_else(Y1_2_Z>nitem, nitem, round(Y1_2_Z,0)),
+  Y2_2_Z = if_else(Y2_2_Z>nitem, nitem, round(Y2_2_Z,0)),
   Y2_1 = if_else(Y2_1 < 0, 0, Y2_1),
   Y1_2_Z = if_else(Y1_2_Z<0, 0, Y1_2_Z),
   Y2_2_Z = if_else(Y2_2_Z<0, 0, Y2_2_Z),
@@ -170,7 +171,7 @@ m = M() #to get dataframe m.
 table(m$responder,m$buskcat)
 allcategorised <- sum(table(m$responder,m$buskcat)) #some are NA
 print(paste0("Model with 2 periods pre and post, buskcut = ",buskcut,": pcorrect: ",sum(m$correctbusk,na.rm=T)/allcategorised))
-
+}
 ```
 
 
@@ -178,7 +179,7 @@ print(paste0("Model with 2 periods pre and post, buskcut = ",buskcut,": pcorrect
 ```{r model3pts,echo=T}
 #Same as model2pts but with 3 time points for pre and post
 #Use same parameters as for model2pts
-
+if (npts==3){
 M3 <- declare_model(
 
   N = 150, #population size - this is just a guestimate of all the children who could have been included
@@ -202,11 +203,11 @@ M3 <- declare_model(
   Y3_2_Z = Y3_2+Z*tau*responder, #treatment effect added to Y3_2
   # ensure all values bounded between 0 and 10 and are whole numbers
 
-  Y2_1 = if_else(Y2_1 > 10, 10, round(Y2_1,0)),
-  Y3_1 = if_else(Y3_1 > 10, 10, round(Y3_1,0)),
-  Y1_2_Z = if_else(Y1_2_Z>10, 10, round(Y1_2_Z,0)),
-  Y2_2_Z = if_else(Y2_2_Z>10, 10, round(Y2_2_Z,0)),
-  Y3_2_Z = if_else(Y3_2_Z>10, 10, round(Y3_2_Z,0)),
+  Y2_1 = if_else(Y2_1 > nitem, nitem, round(Y2_1,0)),
+  Y3_1 = if_else(Y3_1 > nitem, nitem, round(Y3_1,0)),
+  Y1_2_Z = if_else(Y1_2_Z>nitem, nitem, round(Y1_2_Z,0)),
+  Y2_2_Z = if_else(Y2_2_Z>nitem, nitem, round(Y2_2_Z,0)),
+  Y3_2_Z = if_else(Y3_2_Z>nitem, nitem, round(Y3_2_Z,0)),
   Y2_1 = if_else(Y2_1 < 0, 0, Y2_1),
   Y3_1 = if_else(Y3_1 < 0, 0, Y3_1),
   Y1_2_Z = if_else(Y1_2_Z<0, 0, Y1_2_Z),
@@ -236,6 +237,7 @@ m = M3() #to get dataframe m.
 table(m$responder,m$buskcat)
 allcategorised <- sum(table(m$responder,m$buskcat)) #some are NA
 print(paste0("Model with 3 periods pre and post, buskcut = ",buskcut,": pcorrect: ",sum(m$correctbusk,na.rm=T)/allcategorised))
+}
 ```
 
 ### Inquiry  
@@ -323,10 +325,11 @@ mydraw <- draw_data(design) #single simulated dataset
 plotcols <- c("Y1_1","Y2_1","Y1_2_Z","Y2_2_Z")
 w<-which(colnames(mydraw)%in% plotcols)
 
-yvals <- c(mean(mydraw$Y1_1),mean(mydraw$Y2_1),mean(mydraw$Y1_2_Z),mean(mydraw$Y2_2_Z))
-plot(1:4,yvals,type='b',xaxt = "n",ylab="Mean score",xlab="",ylim=c(0,9),main='Sample plot of results\nResponders in red',lwd=3)
+#when plotting we divide Y values by nitem to give proportion, so easier to compare with original data
+yvals <- c(mean(mydraw$Y1_1),mean(mydraw$Y2_1),mean(mydraw$Y1_2_Z),mean(mydraw$Y2_2_Z))/nitem
+plot(1:4,yvals,type='b',xaxt = "n",ylab="Mean score",xlab="",ylim=c(0,.6),main='Sample plot of results',lwd=3)
 for (i in 1:nrow(mydraw)){
-  lines(1:4,mydraw[i,w],type='l',lty=2,col=1+(2*mydraw$correctbusk[i]+mydraw$responder[i]) )
+  lines(1:4,mydraw[i,w]/nitem,type='l',lty=2,col=1+(2*mydraw$correctbusk[i]+mydraw$responder[i]) )
 
   }
 legend("topleft", legend=c("Misclassified nonresp", "Misclassified resp","Correct nonresp","Correct resp"),
