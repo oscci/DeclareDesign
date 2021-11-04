@@ -61,6 +61,32 @@ Because we have a series of 4 timepoints, two before and two after intervention,
 
 For this analysis, we can base these parameters on those observed in real data (raw data kindly provided by Samuel Calder).  
 
+A major difference is that the focus is on the % of people responding to intervention, rather than the mean effect.
+But that means we have to be certain that variation in responsiveness is consistent, and not just due to random error.
+
+Things to control for:
+A. random variation - can be done within-subjects by comparing 
+(1) pre vs post including a measure of variability (more solid if longer baseline) - used to categorise as responder-nonresponder; can do this for both groups, using treated vs untreated portions.
+(2) contrast pre-post outcome with pre-post control measure in similar way - alternative method for responder-nonresponder
+(3) If there is also a measure to which intervention generalises, then responders on that should be much more likely to be responders to main outcome (ie should not get gains in non-responders)
+also
+(4) Between subjects: at same time point, higher % responders for treated vs untreated.
+
+B systematic error
+Improvement over time unrelated to intervention
+This is controlled for by (2) and (4), though we could also estimate from changes in baseline period
+
+So estimands would all be 0 or 1 (non-responder or not), but could then look at combination - would give indication of confidence in whether a responder.
+We can then see how far that measure is accurate - ie agrees with latent responder factor
+
+Looks useful to look at time series stuff:
+https://otexts.com/fpp2/stationarity.html
+https://kevinkotze.github.io/ts-2-tut/
+
+#ARMA is autoregressive moving average model.
+#Looks like arima-sim is mostly used in contexts of prediction.
+
+
 ```{r readrawdata,echo=F}
 #Calder's data was reformatted using the readjslhr script, to create a .csv file with inflection type and group in long form.  NB One participant with no data at followup is excluded; also one measure of .111 was modified to .1, as .111 not compatible with 30 items.
 calderdat <- read.csv('CalderRaw.csv')
@@ -109,22 +135,93 @@ caldersummary3
 
 
 ```{r specifygeneralparameters,echo=F}
+  N = 150 #population size - this is just a guestimate of all the children who *could* have been included
   p = .5 #proportion who respond to treatment. Can vary this.
   mineffect = 2 #used in definition of treatment effect; n items increase in score
   maxeffect = 15 #used in definition of treatment effect
   startprobvals =c(.2,.7) #initial probability correct will vary from person to person - actual value will be assigned at random by taking value between this range and squaring it - this will give a skewed distribution
   buskcut = 1 #cutoff for categorising using Busk d [?arbitrary value]
-  Nmeasures = 3 #N measures pre(baseline) and post-intervention; so far set so can be 2 or 3
+  Nmeasures = 2 #N measures pre(baseline) and post-intervention; so far set so can be 2 or 3
   nitem = 30 #N items per inflection
   r = myr #estimated correlation between successive measures without any intervention
-  npts <- 2 # N observations pre and posttest
+ 
+```
+
+We are aiming to produce a dataframe similar to calderdat.  
+ Columns are:  "ID"         "T1"         "T2"         "T3"         "T4"         "T5"         "T6"   "T7"         "group"      "morph"  
+ So we have rows for each morph, giving 60 rows.
+ Each time period will have its own column; given the 2group design, some values are empty. 
+ We will simulate all 7 time periods.  
+ As well as rows as above, we need to code:
+ some of the fixed parameters,  
+ a code for for each time period indicating whether it was pre-post treatment:  
+ a code for the intercept (i.e. score at time 1) which differs by subjects:  
+ a code for the latent variable indicating whether or not the person is a responder 0/1  
+ a code indicating the treatment effect for each responder/morpheme
+ codes for all scores at all time periods post-treatment (computed)
+ 
+ We also add columns giving the busk effect size (busk_d2) comparing pre and post
+   also the buskcat (categorisation as responder or not based on busk)
+   also 'correctbusk' which is 1 if the buskcat = responder status
+   
+We'll aim to organise things so that the simulated/computed data columns are to the right.
+
+Question as to whether we should just simulate as continuous random numbers within a range, or convert to integer. However, with 30 items per condition, this is less important than when nitem is small, so for now we will just keep with random.
+
+Staying with the DeclareDesign logic, we will simulate a larger population, and then select partipants later. 
+
+
+
+```{r timeseriesversion,echo=T}
+#https://declaredesign.org/r/fabricatr/articles/time_series.html
+#This generates time series but with time points in column, ie long form
+
+#It makes it easy to generate a dataset of autocorrelated datapoints, where number of datapoint (N) can vary.
+#We can also have a slope in the case of a nonstationary model - this would just be change over time without intervention.
+#Would then superimpose a true treatment effect for the post-intervention period.
+
+p = .5 #proportion who respond to intervention
+global_trend <- 0.1 #general trend for improvement with time
+simcalder <- fabricate(
+  subject = add_level(
+    N = 10,
+    baseline = runif(N, 0, 10),
+    growth_units = runif(N, 0.2, 0.8),
+    growth_error = runif(N, 0.1, 0.5),
+    responder = rbinom(N, 1, p),
+    group= 1+rbinom(N,1,.5) 
+  ),
+   observation = add_level(
+    N=7,
+    timept= 0:6,
+    untreated_outcome = baseline + (timept * global_trend) + rnorm(N, sd=growth_error)
+  )
+)
+simcalder$treated <- 0
+temp <- filter(simcalder,group==1,timept %in% c(2,5,6))
+simcalder$treated[as.numeric(temp$observation)]<-NA
+temp <- filter(simcalder,group==1,timept %in% c(3,4))
+simcalder$treated[as.numeric(temp$observation)]<-1
+temp <- filter(simcalder,group==2,timept %in% c(1,4))
+simcalder$treated[as.numeric(temp$observation)]<-NA
+temp <- filter(simcalder,group==2,timept %in% c(5,6))
+simcalder$treated[as.numeric(temp$observation)]<-1
+
+simcalder$treated_outcome <- simcalder$untreated_outcome+simcalder$timept*simcalder$growth_units*simcalder$treated*simcalder$responder
+
+simcalder$sublabel <-paste0(simcalder$subject,': base=',round(simcalder$baseline,0),'; growth=',
+                             round(simcalder$growth_units,2),"; err=",round(simcalder$growth_error,2))
+
+ggplot(simcalder,aes(x=timept,y=treated_outcome,colour=sublabel,linetype=as.factor(responder),group=sublabel)) + geom_line()
+
+
 ```
 
 ```{r model,echo=T}
 #Original model with 2 time points for pre and 2 for post
 #First decide on the size of population of interest.
 # For Calder et al, this might be all the children with DLD in the language units they sampled from, e.g. 150
-if (npts==2){
+if (Nmeasures==2){
 M <- declare_model(
 
   N = 150, #population size - this is just a guestimate of all the children who *could* have been included
@@ -135,7 +232,7 @@ M <- declare_model(
   startprob = runif(N,min=startprobvals[1],max=startprobvals[2])^2, #values are squared to give a skewed distribution
   U = 2*rnorm(N), #random error (U for unknown) #multiplied by 2 just to give realistic amount of variation across people. 
 
-  Y1_1 = rbinom(N,nitems,startprob), #baseline % correct as binomial where startprob is prob of item correct
+  Y1_1 = rbinom(N,nitem,startprob), #baseline % correct as binomial where startprob is prob of item correct
   Y2_1 = r*Y1_1+sqrt(1-r^2)*U, #Y1_1 is baseline measure, Y2_1 is 2nd baseline, correlates with Y1_1 with correlation r
   Y1_2 = r*Y2_1+sqrt(1-r^2)*U, #Y1_2 is first post-intervention measure, correlates with Y2_1
   Y2_2 = r*Y1_2+sqrt(1-r^2)*U, #Y2_2 is 2nd post-intervention measure, correlates with Y1_2
@@ -179,7 +276,7 @@ print(paste0("Model with 2 periods pre and post, buskcut = ",buskcut,": pcorrect
 ```{r model3pts,echo=T}
 #Same as model2pts but with 3 time points for pre and post
 #Use same parameters as for model2pts
-if (npts==3){
+if (Nmeasures==3){
 M3 <- declare_model(
 
   N = 150, #population size - this is just a guestimate of all the children who could have been included
