@@ -8,7 +8,7 @@ output: html_document
 <!--- incorporating changes from Macartan Humphreys-->
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
-options(digits=2)
+#options(digits=2)
 library(knitr)
 library(kableExtra)
 library(gridExtra)
@@ -37,23 +37,171 @@ I will take as my starting point a study by @calder2021.  This is described as a
 knitr::include_graphics("calderfig.png")
 ```
 
-The study adopts a waitlist control design and contains two groups studied across 7 phases.  Both groups are initially assessed during a baseline period (Phases 1-2). Group 1 receives intervention during phase 3 and is then assessed again in phases 4 and 5. Group 2 continues untreated during phases 3-4, which count as an extended baseline, but is treated during phase 5, with post-intervention assessment during phases 6 and 7.  Assessment is made using three type of probe item. Past tense -ed probes assess the grammatical morpheme that was trained in the intervention, whereas 3rd person singular and possessive 's probes assess untrained morphemes. On each occasion, 30 probes of each kind were administered - these were subdivided according to the phonological form of the inflection, but we will not consider that aspect here.  
+The study adopts a waitlist control design and contains two groups studied across 7 phases.  Both groups are initially assessed during a baseline period (Phases 1-2). Group 1 receives intervention during phase 3 and is then assessed again in phases 4 and 5. Group 2 continues untreated during phases 3-4, which count as an extended baseline, but is treated during phase 5, with post-intervention assessment during phases 6 and 7.  Assessment is made using three type of probe item.  
+- Past tense -ed probes assess the grammatical morpheme that was trained in the intervention  
+- 3rd person singular probes assess a related morpheme that is not trained by might be expected to show generalisation  
+- Possessive 's probes assess untrained morphemes that are unrelated to the trained morpheme and so should not show improvement. 
+
+On each occasion, 30 probes of each kind were administered - these were subdivided according to the phonological form of the inflection, but we will not consider that aspect here.  
 
 The design resembles a cross-over RCT, insofar as both groups receive intervention at different periods, first Group 1 and then Group 2, and Group 1 ceases intervention at the point when Group 2 starts it. However, unlike in a standard cross-over design, the expectation is that the effects of intervention will persist after the intervention ceases, so Group 1 is not anticipated to return to baseline levels.
 
-The design also has elements of a SCED. There are two ways in which intervention effects can be estimated within subjects: first, by comparing the baseline and post-intervention periods; second, by comparing percentages correct on probes for trained items (past tense -ed) versus probes for untrained items. If intervention effects were simply placebo effects, we would expect to see gains on all item types.  
+The design also has elements of a SCED. There are two ways in which intervention effects can be estimated within subjects: first, by comparing the baseline and post-intervention periods; second, by comparing percentages correct on probes for trained items (past tense -ed) versus probes for unrelated untrained items (possessives). If intervention effects were simply placebo effects, we would expect to see gains on both item types.  
 
-I will break this design down into components that can be independently evaluated.  We can then see how including additional components of the design affects its efficiency. Let us start with the within-subjects SCED comparison of performance pre- and post-intervention. We can collapse across the two groups and focus on the comparison of scores for the 2 baseline measures preceding intervention and the 2 post-intervention measures. We will focus solely on the treated past tense -ed outcome. Note that this design on its own is unsatisfactory for guarding against systematic bias from practice or developmental effects, and cannot distinguish a specific intervention effect from a placebo effect. Nevertheless, we will start simple, and then build up from there.  Let us see how we could specify this design in the MIDA framework.
+We will start by doing some simple statistical analyses on the raw data (kindly provided by Samuel Calder).  
+
+
+```{r readrawdata,echo=F}
+#Calder's data was reformatted using the readjslhr script, to create a .csv file with inflection type and group in long form.  NB One participant with no data at followup is excluded; also one measure of .111 was modified to .1, as .111 not compatible with 30 items.
+calderdat <- read.csv('CalderRaw.csv')
+
+#Note also that group 2 had 3 assessments pre intervention and 2 after, whereas group 1 had 2 before and 2 after. There was no indication of any improvement between sessions 1-2 for group 2, so comparison could be between their 1st 2 and last 2. 
+
+#Here we create new columns with data recategorised according to time relative to intervention for the 2 groups
+calderdat$pre1 <- calderdat$T1 #default is group 1
+calderdat$pre2 <- calderdat$T2
+calderdat$pre1[calderdat$group==2]<-calderdat$T3[calderdat$group==2]
+calderdat$pre2[calderdat$group==2]<-calderdat$T4[calderdat$group==2]
+
+calderdat$post1 <- calderdat$T4
+calderdat$post2 <- calderdat$T5
+calderdat$post1[calderdat$group==2]<-calderdat$T6[calderdat$group==2]
+calderdat$post2[calderdat$group==2]<-calderdat$T7[calderdat$group==2]
+
+# Now check correlation between the scores on -ed for 4 time points
+w<-which(colnames(calderdat)=='pre1')
+cormat <- cor(calderdat[calderdat$morph=='ed',w:(w+3)])
+myr <- cormat[2,1] #correlation for -ed items is around .7
+calderdat$premean<-(calderdat$pre1+calderdat$pre2)/2
+calderdat$postmean<-(calderdat$post1+calderdat$post2)/2
+calderdat$change <- calderdat$postmean-calderdat$premean
+
+# Look at distributional properties of the measures for each morpheme for the average score pre and post intervention, and for change from pre to post.
+caldersummary <- describeBy(calderdat[,15:17],group=calderdat$morph,mat=TRUE)
+caldersummary
+
+#For the trained morpheme, change is around 9 pts; for untrained it is 2-3 points.
+
+#A more detailed summary broken down by timepoint and group - NB these means should look like those in the summary figure.
+calderdat$groupmorph<-paste0('g',calderdat$group,calderdat$morph)
+caldersummary2 <- describeBy(calderdat[,2:8],group=calderdat$groupmorph,mat=TRUE)
+colnames(caldersummary2)[3:4] <- c('timepoint','nsub')
+caldersummary2[,2:6]
+
+#It turns out that on the -ed structure, everyone improves, so it's obvious even on a simple sign test. 
+#On 3s 16/20 improve - so this is a more interesting one to consider in terms of whether one can identify the subset who improve (and distinguish from changes just due to random error)
+#On poss 15/20 improve - but some get markedly worse. 
+
+#Just checking if improvement seen within pre or post
+calderdat$pre2.1 <-calderdat$pre2-calderdat$pre1
+calderdat$post2.1 <-calderdat$post2-calderdat$post1
+
+caldersummary3 <- describeBy(calderdat[,19:20],group=calderdat$morph,mat=TRUE)
+caldersummary3
+
+#No evidence of any gains between the two pre-test or two post-test sessions, except for pre on possessives
+
+```
+We can use this dataset to try out methods of analysis.  
+A simple measure often used in this area is Busk and Serlin's measure of effect size [@busk1992].  
+For a binary categorisation, we need to specify a cutoff on the busk d2 measure.  
+One way to select this would be to do ROC analysis of all busk pre-post scores for the -ed and poss morphemes. 
+
+```{r functionbuskcompute}
+
+#  Busk and Serlin's measure, d2
+#    varpooled <-(apply(cbind(Y1_1,Y2_1),1,var)+apply(cbind(Y1_2_Z, Y2_2_Z),1,var))/2,
+# NB I originally computed variances in separate steps but fabricatr doesn't like this, 
+# hence v complicated formula here.
+
+    makebusk <- function(myfile,mycols){
+    Y1_1<-myfile[,mycols[1]]
+    Y2_1<-myfile[,mycols[2]]
+    Y1_2<-myfile[,mycols[3]]
+    Y2_2<-myfile[,mycols[4]]
+    busk <- ((Y1_2+Y2_2)-(Y1_1+Y2_1))/2/sqrt((apply(cbind(Y1_1,Y2_1),1,var)+apply(cbind(Y1_2, Y2_2),1,var))/2)
+
+ return(busk)
+}
+
+
+```
+
+
+```{r realanalysis,echo=F}
+calderplay <- calderdat
+calderplay$busk1 <- NA #initialise
+calderplay$row <-1:nrow(calderplay)
+
+buskcut <- 1.5 #cutoff for deciding busk score indicates responder
+#Value determined by trial and error as optimum for low false positive and high correct ID
+
+myfile <- filter(calderplay,group==1)
+mycols<-which(colnames(myfile) %in% c('T1','T2','T4','T5'))
+buskvals <- makebusk(myfile,mycols) #run function defined above
+calderplay$busk1[myfile$row]<-buskvals
+
+myfile <- filter(calderplay,group==2)
+mycols<-which(colnames(myfile) %in% c('T1','T3','T4')) 
+mycols[4]<-mycols[1] #we don't have 4 values so duplicate T1 here
+buskvals <- makebusk(myfile,mycols) #run function defined above
+calderplay$busk1[myfile$row]<-buskvals
+
+calderplay$busk2 <- calderplay$busk1 #just duplicate values - will overwrite just for group 2
+
+mycols<-which(colnames(myfile) %in% c('T3','T4','T6','T7')) #myfile as before but now different cols
+buskvals <- makebusk(myfile,mycols) #run function defined above
+calderplay$busk2[myfile$row]<-buskvals
+
+require(yarrr)
+calderplay$gp2 <- paste0(calderplay$morph,calderplay$group)
+pirateplot(busk1~group*morph,data=calderplay, main='Busk for 1st two intervals \n(only group 1 is treated)')
+abline(h=1.5,lty=3)
+pirateplot(busk2~group*morph,data=calderplay,main='Busk for pre vs post treatment')
+abline(h=1.5,lty=3)
+
+#Also look at difference scores between morphemes.
+calderplay$ed_3s<-NA
+calderplay$ed_poss<-NA
+calderplay$ed_3s[1:20] <- calderplay$change[1:20]-calderplay$change[21:40]
+calderplay$ed_poss[1:20] <- calderplay$change[1:20]-calderplay$change[41:60]
+
+
+
+```
+
+```{r tryROCit}
+require(ROCit)
+calderroc <- calderplay[calderplay$morph != 's3',]
+calderroc$Status <- as.factor(calderroc$morph)
+calderroc$Status2 <- convertclass(x=calderroc$Status,reference='poss')
+measure <- measureit(score=calderroc$busk2,class=calderroc$Status2,
+                     measure=c("ACC","SENS","FSCR"))
+plot(measure$ACC~measure$Cutoff,type='l')
+
+roc_empirical <- rocit(score=calderroc$busk2,class=calderroc$Status2)
+plot(roc_empirical)
+ksplot(roc_empirical)
+diff<-roc_empirical$TPR-roc_empirical$FPR
+plot(roc_empirical$Cutoff,diff)
+m<-max(diff)
+w<-which(diff==m)
+mycutoff <- roc_empirical$Cutoff[w]
+print(paste('Optimal Cutoff on busk d2 = ',mycutoff))
+```
+
 
 ## Using the MIDA framework with a pre-post SCED  
 
 ### Model  
 
-@humphreys2021 note that the Model is concerned with "what causes what and how" and that "it includes guesses about how important variables are generated, how things are correlated, and the sequences of events." The Model has much in common with the notion of a hypothesis, but it is much more detailed than a typical hypothesis, because it requires detailed specification of details of the population and outcomes. Furthermore, the Model is not a single hypothesis; rather it includes a range of hypotheses. One would be the null hypothesis, that intervention is ineffective, another that the intervention leads to improvement on trained constructions. Yet another might be that there are nonspecific treatment effects (placebo effects) which lead to improvement on all constructions, whether trained or not.  In addition, we need to specify the characteristics of the population the model applies to: in this case children with Developmental Language Disorder, of a given age range. 
+@humphreys2021 note that the Model is concerned with "what causes what and how" and that "it includes guesses about how important variables are generated, how things are correlated, and the sequences of events." The Model has much in common with the notion of a hypothesis, but it is much more detailed than a typical hypothesis, because it requires  specification of the population and outcomes. Furthermore, the Model is not a single hypothesis; rather it includes a range of hypotheses. One would be the null hypothesis, that intervention is ineffective, another that the intervention leads to improvement on trained constructions. Yet another might be that there are nonspecific treatment effects (placebo effects) which lead to improvement on all constructions, whether trained or not.  In addition, we need to specify the characteristics of the population the model applies to: in this case children with Developmental Language Disorder, of a given age range. 
 
-An interesting point here, though, is that models for RCTs and SCEDs diverge in terms of how improvement is conceptualised. For a RCT, the focus is on the average improvement; a Model might state that we expect average improvement of 20% on the score for trained constructions. For SCED the assumption is that there will be heterogeneity in responses that we wish to incorporate in the model. Thus we would postulate that a proportion, p, of individuals are responsive to intervention, whereas the remainder do not respond - so we'd have a mixture of null and non-null results. If we simulate results from these two models, we might find they are hard to tell apart - but DeclareDesign should help us diagnose which methods are best at making such a distinction.
+An interesting point here, though, is that models for RCTs and SCEDs diverge in terms of how improvement is conceptualised. For a RCT, the focus is on the average improvement; a Model might state that we expect average improvement of 20% on the score for trained constructions. For SCED the assumption is that there will be heterogeneity in responses that we wish to incorporate in the model. Thus we would postulate that a proportion, p, of individuals are responsive to intervention, whereas the remainder do not respond - so we'd have a mixture of null and non-null results. If we simulate results from these two models, we might find they are hard to tell apart - but DeclareDesign might help us diagnose which methods are best at making such a distinction.
 
-We can also include in the SCED model information about the characteristics of responders. For instance prior research showed that children who have difficulty producing certain speech sounds failed to progress on the intervention used by @calder2021. For now, however, we will keep things simple and just assume the model specifies the population of interest, and the sample size. Initial baseline scores are also included in the model. These vary from person to person. Since 10 items are used for each probe, we can simulate these by selecting a number at random from 0 to 10. Note that @calder2021 excluded two cases who performed at ceiling at baseline; we can use baseline scores to exclude those who score 10. 
+We can also include in the SCED model information about the characteristics of responders. This could be clinically useful in helping determine who should be offered intervention. For instance prior research showed that children who have difficulty producing certain speech sounds failed to progress on the intervention used by @calder2021.  
+
+For now, however, we will keep things simple and just assume the model specifies the population of interest, and the sample size. Initial baseline scores are also included in the model. These vary from person to person. Since 30 items are used for each probe, we can simulate these by selecting a number at random from 0 to 30. Note that @calder2021 excluded two cases who performed at ceiling at baseline; we can use baseline scores to exclude those who score 30. 
 
 A key component of the model is the potential outcomes, which depend on the intervention group. In this simulation everyone receives the intervention, and so all responders should show improvement. We simulate this by adding a treatment effect, tau, to the post-intervention phase for those who are identified as treatment responders.  
 
@@ -79,62 +227,17 @@ This is controlled for by (2) and (4), though we could also estimate from change
 So estimands would all be 0 or 1 (non-responder or not), but could then look at combination - would give indication of confidence in whether a responder.
 We can then see how far that measure is accurate - ie agrees with latent responder factor
 
+
+
+
+## Simulated data
+
 Looks useful to look at time series stuff:
 https://otexts.com/fpp2/stationarity.html
 https://kevinkotze.github.io/ts-2-tut/
 
-#ARMA is autoregressive moving average model.
-#Looks like arima-sim is mostly used in contexts of prediction.
-
-
-```{r readrawdata,echo=F}
-#Calder's data was reformatted using the readjslhr script, to create a .csv file with inflection type and group in long form.  NB One participant with no data at followup is excluded; also one measure of .111 was modified to .1, as .111 not compatible with 30 items.
-calderdat <- read.csv('CalderRaw.csv')
-
-#Note also that group 2 had 3 assessments pre intervention and 2 after, whereas group 1 had 2 before and 2 after. No indication of any improvement between sessions 1-2 for group 2, so comparison could be between their 1st 2 and last 2. 
-
-calderdat$pre1 <- calderdat$T1
-calderdat$pre2 <- calderdat$T2
-calderdat$pre1[calderdat$group==2]<-calderdat$T3[calderdat$group==2]
-calderdat$pre2[calderdat$group==2]<-calderdat$T4[calderdat$group==2]
-calderdat$post1 <- calderdat$T4
-calderdat$post2 <- calderdat$T5
-calderdat$post1[calderdat$group==2]<-calderdat$T6[calderdat$group==2]
-calderdat$post2[calderdat$group==2]<-calderdat$T7[calderdat$group==2]
-
-w<-which(colnames(calderdat)=='pre1')
-cormat <- cor(calderdat[calderdat$morph=='ed',w:(w+3)])
-myr <- cormat[2,1] #correlation for -ed items is around .7
-calderdat$premean<-(calderdat$pre1+calderdat$pre2)/2
-calderdat$postmean<-(calderdat$post1+calderdat$post2)/2
-calderdat$change <- calderdat$postmean-calderdat$premean
-
-
-
-caldersummary <- describeBy(calderdat[,15:17],group=calderdat$morph,mat=TRUE)
-caldersummary
-
-calderdat$groupmorph<-paste0('g',calderdat$group,calderdat$morph)
-caldersummary2 <- describeBy(calderdat[,2:8],group=calderdat$groupmorph,mat=TRUE)
-caldersummary2
-
-#It turns out that on the -ed structure, everyone improves, so it's obvious even on a simple sign test. 
-#On 3s 16/20 improve - so this is a more interesting one to consider in terms of whether one can identify the subset who improve (and distinguish from changes just due to random error)
-#On poss 15/20 improve - but some get markedly worse. 
-
-#Just checking if improvement seen within pre or post
-calderdat$pre2.1 <-calderdat$pre2-calderdat$pre1
-calderdat$post2.1 <-calderdat$post2-calderdat$post1
-
-caldersummary3 <- describeBy(calderdat[,19:20],group=calderdat$morph,mat=TRUE)
-caldersummary3
-
-#No evidence of any gains between the two pre-test or two post-test sessions, except for pre on possessives
-
-```
-
-
 ```{r specifygeneralparameters,echo=F}
+#Constants that are outside the model, though used in it. Can be varied in the diagnosis phase.
   N = 150 #population size - this is just a guestimate of all the children who *could* have been included
   p = .5 #proportion who respond to treatment. Can vary this.
   mineffect = 2 #used in definition of treatment effect; n items increase in score
@@ -172,7 +275,7 @@ Staying with the DeclareDesign logic, we will simulate a larger population, and 
 
 
 
-```{r timeseriesversion,echo=T}
+```{r timeseriesversion,echo=F,include=T}
 #https://declaredesign.org/r/fabricatr/articles/time_series.html
 #This generates time series but with time points in column, ie long form
 
@@ -180,24 +283,35 @@ Staying with the DeclareDesign logic, we will simulate a larger population, and 
 #We can also have a slope in the case of a nonstationary model - this would just be change over time without intervention.
 #Would then superimpose a true treatment effect for the post-intervention period.
 
-p = .5 #proportion who respond to intervention
+#We also want to model a control variable which should not respond to treatment, while retaining some of the other subject-specific parameters.
+
+p <- 1 #proportion who respond to intervention - useful to set to 1 when doing initial testing
+nsub <- 10 #N per group
+nobs <- 7
 global_trend <- 0.1 #general trend for improvement with time
+growth_range <- c(1,2) #for responders, added growth in intervention period
+growth_error <- c(1,1.5) #for all, range of random variation
+start_range <- c(0,12) #N item correct at timepoint 0
 simcalder <- fabricate(
   subject = add_level(
-    N = 10,
-    baseline = runif(N, 0, 10),
-    growth_units = runif(N, 0.2, 0.8),
-    growth_error = runif(N, 0.1, 0.5),
+    N = nsub*2,
+    baseline = runif(N, start_range[1],start_range[2]), #units are items correct
+    baselineCon = runif(N, start_range[1],start_range[2]), #different baseline for control items
+    growth_units = runif(N, growth_range[1],growth_range[2]),
+    growth_error = runif(N, growth_error[1],growth_error[2]), #this is same for both trained and control
     responder = rbinom(N, 1, p),
-    group= 1+rbinom(N,1,.5) 
+    group= c(rep(1,nsub),rep(2,nsub)) 
   ),
    observation = add_level(
-    N=7,
-    timept= 0:6,
-    untreated_outcome = baseline + (timept * global_trend) + rnorm(N, sd=growth_error)
+    N= nobs,
+    timept = 0:(nobs-1),
+    untreated_outcome = baseline + (timept * global_trend) + rnorm(N, sd=growth_error),
+    untreated_outcomeCon = baselineCon+ (timept * global_trend) + rnorm(N, sd=growth_error) #this is control outcome
   )
 )
 simcalder$treated <- 0
+
+#This bit has to be specially crafted depending on which timepoints are NA, 0 or 1 for each group
 temp <- filter(simcalder,group==1,timept %in% c(2,5,6))
 simcalder$treated[as.numeric(temp$observation)]<-NA
 temp <- filter(simcalder,group==1,timept %in% c(3,4))
@@ -207,15 +321,101 @@ simcalder$treated[as.numeric(temp$observation)]<-NA
 temp <- filter(simcalder,group==2,timept %in% c(5,6))
 simcalder$treated[as.numeric(temp$observation)]<-1
 
+#for treated responders, we now add growth-units for periods where treated for the main outcome
 simcalder$treated_outcome <- simcalder$untreated_outcome+simcalder$timept*simcalder$growth_units*simcalder$treated*simcalder$responder
+simcalder$con_outcome <- simcalder$untreated_outcomeCon
+simcalder$con_outcome[is.na(simcalder$treated)]<-NA #remove time periods that were not tested for this group
+
+#NB for control items, the untreated_outcome does not change, except to mark NA values
+```
+```{r plotdata,echo=F}
+#Now plot individual cases: first create a complex label for each subject denoting values of parameters, to help understand plot
 
 simcalder$sublabel <-paste0(simcalder$subject,': base=',round(simcalder$baseline,0),'; growth=',
                              round(simcalder$growth_units,2),"; err=",round(simcalder$growth_error,2))
 
-ggplot(simcalder,aes(x=timept,y=treated_outcome,colour=sublabel,linetype=as.factor(responder),group=sublabel)) + geom_line()
+simcalder$pcorr<-simcalder$treated_outcome/nitem
+simcalder$pcorr[simcalder$pcorr>1]<-1 #% correct cannot exceed 1
+
+ggplot(simcalder,aes(x=timept,y=pcorr,linetype=as.factor(responder),colour=sublabel,group=sublabel)) + geom_line()
+
+```
+
+
+```{r makewide,echo=F,include=T}
+#Create a wide-form table showing data - need to first remove unwanted cols with varying values
+w<-which(colnames(simcalder) %in% c('untreated_outcome','observation','treated','pcorr','con_outcome','untreated_outcomeCon'))
+simcalderwide <- spread(simcalder[,-w], timept, treated_outcome)
+w<-which(colnames(simcalderwide)=='0') #find first timept column so we can rename it
+colnames(simcalderwide)[w:(w+nobs-1)]<-paste0('t',colnames(simcalderwide)[w:(w+nobs-1)])
+
+#now do the same for the untreated outcome - first removed unwanted columns
+w<-which(colnames(simcalder) %in% c('untreated_outcome','observation','treated','pcorr','treated_outcome','untreated_outcomeCon'))
+simcalderwidecon <- spread(simcalder[,-w], timept, con_outcome)
+w<-which(colnames(simcalderwidecon)=='0') #find first timept column so we can rename it
+colnames(simcalderwidecon)[w:(w+nobs-1)]<-paste0('t',colnames(simcalderwidecon)[w:(w+nobs-1)],'con')
+simcalderwide<-cbind(simcalderwide,simcalderwidecon[,w:(w+nobs-1)])
+
+#Uncomment next two lines to inspect 
+#simcalderwide
+#colMeans(simcalderwide[w:(w+nobs-1)],na.rm=T)/nitem #mean proportions correct at each time point
+
+simcalderwide$row<-1:nrow(simcalderwide) #rownumber is useful when filtering
+```
+
+```{r makebusks,echo=F}
+#we now need to do the busk d scores.
+#For group1, we just have busk1, based on mean of times 3-4 vs 0-1
+#For group2, for busk1, we have time 3 vs 0, 2 [expect no effect here]
+#Then busk2, for time 5-6 vs 2-3
+
+simcalderwide$busk1 <- NA #initialise
+
+buskcut <- 1.5 #cutoff for deciding busk score indicates responder
+#Value determined by trial and error as optimum for low false positive and high correct ID
+
+myfile <- filter(simcalderwide,group==1)
+mycols<-which(colnames(myfile) %in% c('t0','t1','t3','t4'))
+buskvals <- makebusk(myfile,mycols) #run function defined above
+simcalderwide$busk1[myfile$row]<-buskvals
+
+myfile <- filter(simcalderwide,group==2)
+mycols<-which(colnames(myfile) %in% c('t0','t2','t3')) 
+mycols[4]<-mycols[1] #we don't have 4 values so duplicate t0 here
+buskvals <- makebusk(myfile,mycols) #run function defined above
+simcalderwide$busk1[myfile$row]<-buskvals
+
+simcalderwide$busk2 <- simcalderwide$busk1 #just duplicate values - will overwrite just for group 2
+
+mycols<-which(colnames(myfile) %in% c('t2','t3','t5','t6')) #myfile as before but now different cols
+buskvals <- makebusk(myfile,mycols) #run function defined above
+simcalderwide$busk2[myfile$row]<-buskvals
+
+#We now convert buskvals into 1 and 0
+simcalderwide$busk1cat <- ifelse(simcalderwide$busk1>buskcut,1,0)
+simcalderwide$correctbusk1 = ifelse(simcalderwide$busk1cat==simcalderwide$responder,1,0) #1 if busk category and latent responder measure agree 
+#Note that because group 2 are untreated at this point, we expect correctbusk1 to be wrong for them!
+
+simcalderwide$busk2cat <- ifelse(simcalderwide$busk2>buskcut,1,0)
+simcalderwide$correctbusk2 = ifelse(simcalderwide$busk2cat==simcalderwide$responder,1,0) #1 if busk category and latent responder measure agree 
+
+#Can simulate data where all are responders to find out optimum cutoff
+
+
+corrects1 <- mean(simcalderwide$busk1cat[simcalderwide$group==1])
+fp1 <-mean(simcalderwide$busk1cat[simcalderwide$group==2])
+corrects2 <- mean(simcalderwide$busk2cat[simcalderwide$group==2])
+
+#We now can repeat the exercise for the control outcome - this gives further evidence on false positives.
+
+#A further option would be to compare the DIFFERENCE between main outcome and control outcome for pre and post - i.e. this is a difference of a difference. 
+
+
 
 
 ```
+
+
 
 ```{r model,echo=T}
 #Original model with 2 time points for pre and 2 for post
