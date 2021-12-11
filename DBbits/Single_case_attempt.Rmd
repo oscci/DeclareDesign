@@ -6,6 +6,7 @@ output: html_document
 ---
 
 <!--- incorporating changes from Macartan Humphreys-->
+<!--- incorporating analysis of raw data from Calder et al-->
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 #options(digits=2)
