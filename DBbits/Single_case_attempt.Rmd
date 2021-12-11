@@ -1,7 +1,7 @@
 ---
 title: "single_case_eg"
 author: "Dorothy Bishop"
-date: "started 13/09/2021, today 2/11/2021"
+date: "started 13/09/2021, today 9/12/2021"
 output: html_document
 ---
 
@@ -18,19 +18,22 @@ library(fabricatr)
 library(randomizr)
 library(estimatr)
 library(psych)
+require(ROCit) #for ROC analysis
+library("gridExtra")
+library(cowplot)
 ```
 
 ## Single case experimental designs (SCEDs)
 
 In some disciplines, notably those where intervention is used with populations that are highly heterogeneous, single case experimental designs (SCEDs) are a set of procedures that are widely used in preference to randomised controlled trials (RCTs). At the extremes, these are radically different approaches to evaluating an intervention, using within-subjects versus between-subjects analyses respectively. The term 'single case' can be misleading; SCEDs are not case reports; they use experimental control and often involve more than one participant, creating a case series. The emphasis, however, is on individual outcomes rather than the group average. 
 
-@best2019 compared the advantages and disadvantages of the two approaches, noting differences in cost and scale (substantially larger for RCTs), as well as different approaches to experimental controls - via use of a control group in RCTs, as opposed to contrasts between time periods or outcomes in SCEDs. Best noted the differing conclusions that can be drawn from RCTs, where "If a difference between groups is found, this is in the group average; the intervention is not necessarily beneficial for all those that are treated", as opposed to SCEDs, where "The findings are applicable on a case by case basis and are analysed for each participant separately."  
+@best2019 compared the advantages and disadvantages of the two approaches, noting differences in cost and scale (substantially larger for RCTs), as well as different approaches to experimental controls - via use of a control group in RCTs, as opposed to contrasts between time periods or outcome measures in SCEDs. Best noted the differing conclusions that can be drawn from RCTs, where "If a difference between groups is found, this is in the group average; the intervention is not necessarily beneficial for all those that are treated", as opposed to SCEDs, where "The findings are applicable on a case by case basis and are analysed for each participant separately."  
 
-This kind of weighing up of pros and cons of different experimental designs is precisely what DeclareDesign aims to do, within a formal framework that requires specification of the underlying assumptions of different approaches, and uses simulated data to compare them on a set of criteria specified by the researcher. The goal is to evaluate designs so that they can be optimised for a given research question. This becomes particularly interesting when one considers that the polarised distinction between RCTs and SCEDs is not absolute, and there is growing interest in combining the two approaches in hybrid designs.  
+This kind of weighing up of pros and cons of different experimental designs is precisely what DeclareDesign aims to do, within a formal framework that requires specification of the underlying assumptions of different approaches, and uses simulated data to compare them on a set of criteria specified by the researcher. The goal is to evaluate designs so that they can be optimised for a given research question. This becomes particularly interesting when one considers that the polarised distinction between RCTs and SCEDs is not absolute, and there is growing interest in combining aspects of the two approaches in hybrid designs.  
 
 Here I aim to apply the MIDA approach of DeclareDesign to SCEDs. MIDA stands for Model, Inquiry, Data Strategy and Answer Strategy, with the first two elements being theoretical and the second two empirical. This way of conceptualising intervention studies is quite foreign to most researchers, who tend to focus simply on selecting a research design and analytic method. Its value, however, becomes apparent as soon as we look in detail at the comparisons of methods laid out by @best2019, because it allows us to categorise the different aspects of the two study types as belonging to specific parts of the overall research design.  
 
-I will take as my starting point a study by @calder2021.  This is described as a RCT, but is actually a hybrid design that grew out of previous SCED studies by the authors on the same topic, which is evaluation of an intervention to help language-disordered children use grammatical endings correctly. The design of the study can be grasped by showing the plot of results. 
+I will take as my starting point a study by @calder2021.  This is described as a RCT, but can be treated as a hybrid design that grew out of previous SCED studies by the authors on the same topic, evaluating an intervention to help language-disordered children use grammatical endings correctly. The design of the study can be grasped by showing the plot of mean scores for two groups.  
 
 ```{r calderfig,echo=F,eval=F,warning=F,message=F,fig.leg = "Mean % correct for two groups in Calder et al, 2021. Data plotted from Table 2."}
 #Original plot created for intervention book
@@ -40,7 +43,7 @@ knitr::include_graphics("calderfig.png")
 The study adopts a waitlist control design and contains two groups studied across 7 phases.  Both groups are initially assessed during a baseline period (Phases 1-2). Group 1 receives intervention during phase 3 and is then assessed again in phases 4 and 5. Group 2 continues untreated during phases 3-4, which count as an extended baseline, but is treated during phase 5, with post-intervention assessment during phases 6 and 7.  Assessment is made using three type of probe item.  
 - Past tense -ed probes assess the grammatical morpheme that was trained in the intervention  
 - 3rd person singular probes assess a related morpheme that is not trained by might be expected to show generalisation  
-- Possessive 's probes assess untrained morphemes that are unrelated to the trained morpheme and so should not show improvement. 
+- Possessive 's probes assess untrained morphemes that are sufficiently different from the trained morpheme that they are not expected to show improvement. 
 
 On each occasion, 30 probes of each kind were administered - these were subdivided according to the phonological form of the inflection, but we will not consider that aspect here.  
 
@@ -102,10 +105,12 @@ caldersummary3
 #No evidence of any gains between the two pre-test or two post-test sessions, except for pre on possessives
 
 ```
-We can use this dataset to try out methods of analysis.  
-A simple measure often used in this area is Busk and Serlin's measure of effect size [@busk1992].  
-For a binary categorisation, we need to specify a cutoff on the busk d2 measure.  
-One way to select this would be to do ROC analysis of all busk pre-post scores for the -ed and poss morphemes. 
+We can use this dataset to explore methods of analysis.  
+A measure of effect size for individual participants has been proposed by Busk and Serlin in the context of doing meta-analyses of a series of single case studies [@ES_BS1992]. This is a conventional effect size, in which mean scores from the two phases (baseline and post-intervention) are subtracted and divided by a measure of standard deviation. The standard deviation can either be based just on the baseline phase or be a pooled estimate from both phases: these methods make different assumptions about similarity of variances across the two phases of study. As we have only two datapoints in a phase for some cases, we use here the second method for purely pragmatic reasons; this we term ES_BS. Busk and Serlin note that the expected distribution of this measure of effect size will depend on how far datapoints within and between phases are independent, and on whether the variance is equal across both phases. Using simulated data, we can explore what the distribution of ES_BS looks like under different assumptions.  
+
+In the design of Calder et al we can also compute an ES_BS for each participant for the control measure, which is not expected to improve. This makes a stronger test because a particular pattern of results is expected. Furthermore, the pattern is expected to differ for the treated and untreated groups.
+
+Here we adopt an underlying model that assumes that a proportion of cases, p, in the treated group improve, and we aim to use the ES_BS scores to categorise cases as treatment responders or non-responders. In the simplest case, all treated cases improve and none of the untreated cases improve, so p = 1. 
 
 ```{r functionbuskcompute}
 
@@ -130,7 +135,7 @@ One way to select this would be to do ROC analysis of all busk pre-post scores f
 
 ```{r realanalysis,echo=F}
 calderplay <- calderdat
-calderplay$busk1 <- NA #initialise
+calderplay$ES_BS1 <- NA #initialise
 calderplay$row <-1:nrow(calderplay)
 
 buskcut <- 1.5 #cutoff for deciding busk score indicates responder
@@ -139,25 +144,25 @@ buskcut <- 1.5 #cutoff for deciding busk score indicates responder
 myfile <- filter(calderplay,group==1)
 mycols<-which(colnames(myfile) %in% c('T1','T2','T4','T5'))
 buskvals <- makebusk(myfile,mycols) #run function defined above
-calderplay$busk1[myfile$row]<-buskvals
+calderplay$ES_BS1[myfile$row]<-buskvals
 
 myfile <- filter(calderplay,group==2)
 mycols<-which(colnames(myfile) %in% c('T1','T3','T4')) 
 mycols[4]<-mycols[1] #we don't have 4 values so duplicate T1 here
 buskvals <- makebusk(myfile,mycols) #run function defined above
-calderplay$busk1[myfile$row]<-buskvals
+calderplay$ES_BS1[myfile$row]<-buskvals
 
-calderplay$busk2 <- calderplay$busk1 #just duplicate values - will overwrite just for group 2
+calderplay$ES_BS2 <- calderplay$ES_BS1 #just duplicate values - will overwrite just for group 2
 
 mycols<-which(colnames(myfile) %in% c('T3','T4','T6','T7')) #myfile as before but now different cols
 buskvals <- makebusk(myfile,mycols) #run function defined above
-calderplay$busk2[myfile$row]<-buskvals
+calderplay$ES_BS2[myfile$row]<-buskvals
 
 require(yarrr)
 calderplay$gp2 <- paste0(calderplay$morph,calderplay$group)
-pirateplot(busk1~group*morph,data=calderplay, main='Busk for 1st two intervals \n(only group 1 is treated)')
+pirateplot(ES_BS1~group*morph,data=calderplay, main='Busk for 1st two intervals \n(only group 1 is treated)')
 abline(h=1.5,lty=3)
-pirateplot(busk2~group*morph,data=calderplay,main='Busk for pre vs post treatment')
+pirateplot(ES_BS2~group*morph,data=calderplay,main='Busk for pre vs post treatment')
 abline(h=1.5,lty=3)
 
 #Also look at difference scores between morphemes.
@@ -170,16 +175,18 @@ calderplay$ed_poss[1:20] <- calderplay$change[1:20]-calderplay$change[41:60]
 
 ```
 
+For the binary categorisation of responder/non-responder, we need to identify an optimal cutoff on the ES_BS2 measure.  
+One way to select this would be to do ROC analysis of all busk pre-post scores for the -ed and poss morphemes. 
 ```{r tryROCit}
-require(ROCit)
+
 calderroc <- calderplay[calderplay$morph != 's3',]
 calderroc$Status <- as.factor(calderroc$morph)
 calderroc$Status2 <- convertclass(x=calderroc$Status,reference='poss')
-measure <- measureit(score=calderroc$busk2,class=calderroc$Status2,
+measure <- measureit(score=calderroc$ES_BS2,class=calderroc$Status2,
                      measure=c("ACC","SENS","FSCR"))
 plot(measure$ACC~measure$Cutoff,type='l')
 
-roc_empirical <- rocit(score=calderroc$busk2,class=calderroc$Status2)
+roc_empirical <- rocit(score=calderroc$ES_BS2,class=calderroc$Status2)
 plot(roc_empirical)
 ksplot(roc_empirical)
 diff<-roc_empirical$TPR-roc_empirical$FPR
@@ -187,8 +194,89 @@ plot(roc_empirical$Cutoff,diff)
 m<-max(diff)
 w<-which(diff==m)
 mycutoff <- roc_empirical$Cutoff[w]
-print(paste('Optimal Cutoff on busk d2 = ',mycutoff))
+print(paste('Optimal Cutoff on ES_BS2 = ',mycutoff))
 ```
+We also computed an effect size for baseline/postintervention comparison of the control morpheme, possessive 's.  Here the prediction is that for both groups there should not be any change. Here we plot the ES_BS2 values for the treated vs control morpheme, for the comparison of pre- vs post-intervention. 
+```{r makescatterfunction,echo=T}
+makescatter<-function(scatterdat,myxlim1,myxlim2,mytitle){
+  p<-ggplot(scatterdat, aes(x=scatterdat[,2], y=scatterdat[,3],  color=group)) +
+  geom_point(size=4)+
+  xlim(myxlim1,myxlim2)+
+  ylim(myxlim1,myxlim2)+
+  xlab(colnames(scatterdat)[2])+
+  ylab(colnames(scatterdat)[3])+
+  geom_abline(intercept = 0, slope = 1,  linetype="dotted")+
+  geom_hline(yintercept=2,linetype="dashed",colour='red')+
+  geom_vline(xintercept=2,linetype="dashed",colour='red')+
+  geom_hline(yintercept=0,linetype="dotted")+
+  geom_vline(xintercept=0,linetype="dotted")+
+  geom_text(aes(label=subid),colour='black',size=4)+
+  ggtitle(mytitle)
+return(p)
+}
+
+```
+
+```{r plotmorphemeES, echo=T}
+#need to convert to wide form for scatterplot
+wantcols <- c('ID','group','ES_BS1','ES_BS2')
+scatterdat1 <- calderplay[calderplay$morph=='ed',wantcols]
+scatterdat2 <- calderplay[calderplay$morph=='poss',wantcols]
+scatterdat3 <- calderplay[calderplay$morph=='s3',wantcols]
+scatterdat1<-cbind(scatterdat1,scatterdat2$ES_BS1,scatterdat2$ES_BS2,scatterdat3$ES_BS1,scatterdat3$ES_BS2)
+colnames(scatterdat1)<-c('ID','group','ES_BS1_ed','ES_BS2_ed','ES_BS1_poss','ES_BS2_poss','ES_BS1_s3','ES_BS2_s3')
+scatterdat1$group<-as.factor(2-scatterdat1$group) #reverse the order - makes it easier for coding later
+levels(scatterdat1$group)<-c('N','T')
+scatterdat1$subid <-sub(".", "", scatterdat1$ID)
+
+#set same limits for x and y axis for all plots
+myxlim1<-round(min(c(scatterdat1$ES_BS2_poss,scatterdat1$ES_BS2_ed)),0)-1
+myxlim2<-round(1+max(c(scatterdat1$ES_BS2_poss,scatterdat1$ES_BS2_ed)),0)
+
+ mytitle <- "Possessive (control) vs -ed (trained) effect size\nGroup T trained, Group N untrained"
+c0 <- which(colnames(scatterdat1)=='group')
+c1<-which(colnames(scatterdat1)=="ES_BS1_ed")
+c2<-which(colnames(scatterdat1)=="ES_BS1_poss")
+c3<-which(colnames(scatterdat1)=="subid")
+scatterdat<-scatterdat1[,c(c0,c1,c2,c3)]
+p1<-makescatter(scatterdat, myxlim1,myxlim2,mytitle)
+
+mytitle <- "Possessive (control) vs -ed (trained) effect size\nBoth groups baseline vs post-intervention"
+c1<-which(colnames(scatterdat1)=="ES_BS2_ed")
+c2<-which(colnames(scatterdat1)=="ES_BS2_poss")
+scatterdat<-scatterdat1[,c(c0,c1,c2,c3)]
+p2<-makescatter(scatterdat, myxlim1,myxlim2,mytitle)
+
+mytitle <- "3rd person singular (control) vs -ed (trained) effect size\nBoth groups trained on -ed"
+c1<-which(colnames(scatterdat1)=="ES_BS2_ed")
+c2<-which(colnames(scatterdat1)=="ES_BS2_s3")
+scatterdat<-scatterdat1[,c(c0,c1,c2,c3)]
+p3<-makescatter(scatterdat, myxlim1,myxlim2,mytitle)
+
+mytitle<-"Effect size for -ed (trained)\nGroup N post-training vs pre-training"
+c1<-which(colnames(scatterdat1)=="ES_BS1_ed")
+c2<-which(colnames(scatterdat1)=="ES_BS2_ed")
+scatterdat<-scatterdat1[scatterdat1$group=="N",c(c0,c1,c2,c3)]
+p4<-makescatter(scatterdat,myxlim1,myxlim2,mytitle)
+
+p_all <- plot_grid(p1, p4,p2,p3, labels=c("A", "B","C","D"), 
+          ncol = 2, nrow = 2)
+ggsave(plot = p_all, width = 6, height = 6, dpi = 300, filename = "Calder_plots.pdf")
+
+```
+We can see how the design of Calder et al allows us to scrutinise several sources of evidence for training effets. Panel A of the figure contrasts effect sizes for the -ed morpheme, which was trained, versus the possessive 's morpheme (a control morpheme) in group T (blue), who were trained specifically on -ed, and for group N (pink), who were not given any training over these two time periods. It can be seen that the pink points cluster in the bottom right quadrant, with effect sizes below 2 (showng as dashed red line) on both constructions. According to Busk and Serlin, under reasonable assumptions, this effect size measure is distributed like a t-distribution, which would mean that a value of 2 would correspond roughly to a value that was significant at the 5% level on one-tailed test; i.e. a score this big is unlikely to have arisen by chance if the intervention had no true effect. In contrast most of the blue points (treated group) have ES values greater than 2 for the trained -ed construction, though three of them (subjects 12, 16 and 23) have values between 1 and 2. 
+
+The picture for the untrained possessive morpheme is quite different. The dotted sloped line shows the point where the two types of morpheme show similar effect sizes, and it is clear that for group T, most participants have effect sizes falling well below that line. This pattern of performance is just what would be expected if the improvement associated with intervention was due to the specific training, and not a more general improvement that might reflect the child just getting familiar with the intervention set-up, or becoming more motivated.  There are however two participants in group T (5 and 9) who have an effect size greater than 2 on possessives as well as -ed constructions. For these participants, the evidence of an intervention effect looks much less compelling, because their improvement is non-specific.
+
+Panel B shows the contrast between effect sizes obtained for two periods in group N. These ES values are not independent as they both involve a comparison with the baseline period, but ES_BS1 is measured during the phase when no intervention occurred (as shown also in panel A), whereas ES_BS2 is measured after intervention. These data also conform nicely to expectation, with only one participant (20) having a value less than 2 after intervention, though all of them score below this level in the pre-intervention period. 
+
+In Panel C, the data for group T are identical to those in panel A, but we now see the ES after training for group N - both for the trained -ed morpheme and for the control possessive morpheme. We would expect that group N's data would now look more like group T's data, and this is generally the case, with effect sizes for the possessive remaining below 2, whereas those for the -ed morpheme are generally above 2 (as shown also for group N in panel B). Participants 3, 4 and 19 are exceptions, in that they also show improvement on the possessives, which is not anticipated given the intervention focus on -ed. 
+
+In Panel D, data are similar to those in panel C, except that we now consider the third person singular morpheme on the Y-axis. Because this morpheme is similar to -ed, in that it involves inflecting a verb stem, it is plausible that some children might show generalisation of learning. Four children, 1, 14, 19 and 22, showed improvement on both the third person singular and past tense -ed. Could this just be indicative of general improvement due to improved motivation or familiarity with the task? We argued that was likely to be the explanation for those who improved on possessives. Some reassurance may be provided in cases where there was improvement on the third person singular but not on the possessive - this was the case for participants 1, 14 and 22. However, participant 19 improved on all three morpheme types, and so their results look more compatible with a general non-specific improvement, rather than a selective effect of intervention.
+
+Overall, of the ten children in group N, six showed the kind of selective improvement with past tense morphemes that would indicate a genuine effect of intervention;  three showed improvement both on trained and untrained morphemes that suggested a generalised improvement due to factors such as motivation or attention, and one showed no evidence of improvement with training. 
+Of the ten children in group T, five showed selective improvement on -ed morphemes relative to possessive morphemes, three did not show improvement, and the remaining two showed evidence of mild improvement on both trained and untrained morephemes. In addition three children showed some evidence of generalisation to a related morpheme (3rd person singular) that was not accounted for by general improvement across the board. 
+
 
 
 ## Using the MIDA framework with a pre-post SCED  
@@ -365,11 +453,11 @@ simcalderwide$row<-1:nrow(simcalderwide) #rownumber is useful when filtering
 
 ```{r makebusks,echo=F}
 #we now need to do the busk d scores.
-#For group1, we just have busk1, based on mean of times 3-4 vs 0-1
-#For group2, for busk1, we have time 3 vs 0, 2 [expect no effect here]
-#Then busk2, for time 5-6 vs 2-3
+#For group1, we just have ES_BS1, based on mean of times 3-4 vs 0-1
+#For group2, for ES_BS1, we have time 3 vs 0, 2 [expect no effect here]
+#Then ES_BS2, for time 5-6 vs 2-3
 
-simcalderwide$busk1 <- NA #initialise
+simcalderwide$ES_BS1 <- NA #initialise
 
 buskcut <- 1.5 #cutoff for deciding busk score indicates responder
 #Value determined by trial and error as optimum for low false positive and high correct ID
@@ -377,34 +465,34 @@ buskcut <- 1.5 #cutoff for deciding busk score indicates responder
 myfile <- filter(simcalderwide,group==1)
 mycols<-which(colnames(myfile) %in% c('t0','t1','t3','t4'))
 buskvals <- makebusk(myfile,mycols) #run function defined above
-simcalderwide$busk1[myfile$row]<-buskvals
+simcalderwide$ES_BS1[myfile$row]<-buskvals
 
 myfile <- filter(simcalderwide,group==2)
 mycols<-which(colnames(myfile) %in% c('t0','t2','t3')) 
 mycols[4]<-mycols[1] #we don't have 4 values so duplicate t0 here
 buskvals <- makebusk(myfile,mycols) #run function defined above
-simcalderwide$busk1[myfile$row]<-buskvals
+simcalderwide$ES_BS1[myfile$row]<-buskvals
 
-simcalderwide$busk2 <- simcalderwide$busk1 #just duplicate values - will overwrite just for group 2
+simcalderwide$ES_BS2 <- simcalderwide$ES_BS1 #just duplicate values - will overwrite just for group 2
 
 mycols<-which(colnames(myfile) %in% c('t2','t3','t5','t6')) #myfile as before but now different cols
 buskvals <- makebusk(myfile,mycols) #run function defined above
-simcalderwide$busk2[myfile$row]<-buskvals
+simcalderwide$ES_BS2[myfile$row]<-buskvals
 
 #We now convert buskvals into 1 and 0
-simcalderwide$busk1cat <- ifelse(simcalderwide$busk1>buskcut,1,0)
-simcalderwide$correctbusk1 = ifelse(simcalderwide$busk1cat==simcalderwide$responder,1,0) #1 if busk category and latent responder measure agree 
-#Note that because group 2 are untreated at this point, we expect correctbusk1 to be wrong for them!
+simcalderwide$ES_BS1cat <- ifelse(simcalderwide$ES_BS1>buskcut,1,0)
+simcalderwide$correctES_BS1 = ifelse(simcalderwide$ES_BS1cat==simcalderwide$responder,1,0) #1 if busk category and latent responder measure agree 
+#Note that because group 2 are untreated at this point, we expect correctES_BS1 to be wrong for them!
 
-simcalderwide$busk2cat <- ifelse(simcalderwide$busk2>buskcut,1,0)
-simcalderwide$correctbusk2 = ifelse(simcalderwide$busk2cat==simcalderwide$responder,1,0) #1 if busk category and latent responder measure agree 
+simcalderwide$ES_BS2cat <- ifelse(simcalderwide$ES_BS2>buskcut,1,0)
+simcalderwide$correctES_BS2 = ifelse(simcalderwide$ES_BS2cat==simcalderwide$responder,1,0) #1 if busk category and latent responder measure agree 
 
 #Can simulate data where all are responders to find out optimum cutoff
 
 
-corrects1 <- mean(simcalderwide$busk1cat[simcalderwide$group==1])
-fp1 <-mean(simcalderwide$busk1cat[simcalderwide$group==2])
-corrects2 <- mean(simcalderwide$busk2cat[simcalderwide$group==2])
+corrects1 <- mean(simcalderwide$ES_BS1cat[simcalderwide$group==1])
+fp1 <-mean(simcalderwide$ES_BS1cat[simcalderwide$group==2])
+corrects2 <- mean(simcalderwide$ES_BS2cat[simcalderwide$group==2])
 
 #We now can repeat the exercise for the control outcome - this gives further evidence on false positives.
 
@@ -648,7 +736,7 @@ myt
 
 myt <- table(mydraw$responder, mydraw$buskcat)
 row.names(myt)<-c('Non-responder','Responder')
-colnames(myt)<-c('Busk0','Busk1')
+colnames(myt)<-c('Busk0','ES_BS1')
 myt
 
 draw_estimates(design) %>% kable()
