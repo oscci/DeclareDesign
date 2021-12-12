@@ -7,6 +7,7 @@ output: html_document
 
 <!--- incorporating changes from Macartan Humphreys-->
 <!--- incorporating analysis of raw data from Calder et al-->
+<!--- have set Git credentials 12/12/21-->
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 #options(digits=2)
