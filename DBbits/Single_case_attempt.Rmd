@@ -23,6 +23,7 @@ library(psych)
 require(ROCit) #for ROC analysis
 library("gridExtra")
 library(cowplot)
+library(MASS)
 ```
 
 ## Single case experimental designs (SCEDs)
@@ -266,7 +267,7 @@ p_all <- plot_grid(p1, p4,p2,p3, labels=c("A", "B","C","D"),
 ggsave(plot = p_all, width = 6, height = 6, dpi = 300, filename = "Calder_plots.pdf")
 
 ```
-We can see how the design of Calder et al allows us to scrutinise several sources of evidence for training effets. Panel A of the figure contrasts effect sizes for the -ed morpheme, which was trained, versus the possessive 's morpheme (a control morpheme) in group T (blue), who were trained specifically on -ed, and for group N (pink), who were not given any training over these two time periods. It can be seen that the pink points cluster in the bottom right quadrant, with effect sizes below 2 (showng as dashed red line) on both constructions. According to Busk and Serlin, under reasonable assumptions, this effect size measure is distributed like a t-distribution, which would mean that a value of 2 would correspond roughly to a value that was significant at the 5% level on one-tailed test; i.e. a score this big is unlikely to have arisen by chance if the intervention had no true effect. In contrast most of the blue points (treated group) have ES values greater than 2 for the trained -ed construction, though three of them (subjects 12, 16 and 23) have values between 1 and 2. 
+We can see how the design of Calder et al allows us to scrutinise several sources of evidence for training effects. Panel A of the figure contrasts effect sizes for the -ed morpheme, which was trained, versus the possessive 's morpheme (a control morpheme) in group T (blue), who were trained specifically on -ed, and for group N (pink), who were not given any training over these two time periods. It can be seen that the pink points cluster in the bottom right quadrant, with effect sizes below 2 (shown as dashed red line) on both morphemes. According to Busk and Serlin, under reasonable assumptions, this effect size measure is distributed like a t-distribution, which would mean that a value of 2 would correspond roughly to a value that was significant at the 5% level on one-tailed test; i.e. a score this big is unlikely to have arisen by chance if the intervention had no true effect. In contrast most of the blue points (treated group) have ES values greater than 2 for the trained -ed construction, though three of them (subjects 12, 16 and 23) have values between 1 and 2. 
 
 The picture for the untrained possessive morpheme is quite different. The dotted sloped line shows the point where the two types of morpheme show similar effect sizes, and it is clear that for group T, most participants have effect sizes falling well below that line. This pattern of performance is just what would be expected if the improvement associated with intervention was due to the specific training, and not a more general improvement that might reflect the child just getting familiar with the intervention set-up, or becoming more motivated.  There are however two participants in group T (5 and 9) who have an effect size greater than 2 on possessives as well as -ed constructions. For these participants, the evidence of an intervention effect looks much less compelling, because their improvement is non-specific.
 
@@ -274,11 +275,169 @@ Panel B shows the contrast between effect sizes obtained for two periods in grou
 
 In Panel C, the data for group T are identical to those in panel A, but we now see the ES after training for group N - both for the trained -ed morpheme and for the control possessive morpheme. We would expect that group N's data would now look more like group T's data, and this is generally the case, with effect sizes for the possessive remaining below 2, whereas those for the -ed morpheme are generally above 2 (as shown also for group N in panel B). Participants 3, 4 and 19 are exceptions, in that they also show improvement on the possessives, which is not anticipated given the intervention focus on -ed. 
 
-In Panel D, data are similar to those in panel C, except that we now consider the third person singular morpheme on the Y-axis. Because this morpheme is similar to -ed, in that it involves inflecting a verb stem, it is plausible that some children might show generalisation of learning. Four children, 1, 14, 19 and 22, showed improvement on both the third person singular and past tense -ed. Could this just be indicative of general improvement due to improved motivation or familiarity with the task? We argued that was likely to be the explanation for those who improved on possessives. Some reassurance may be provided in cases where there was improvement on the third person singular but not on the possessive - this was the case for participants 1, 14 and 22. However, participant 19 improved on all three morpheme types, and so their results look more compatible with a general non-specific improvement, rather than a selective effect of intervention.
+In Panel D, data are similar to those in panel C, except that we now consider the third person singular morpheme on the Y-axis. Because this morpheme is similar to -ed, in that it involves inflecting a verb stem, it had been predicted that some children might show generalisation of learning. Four children, 1, 14, 19 and 22, showed improvement on both the third person singular and past tense -ed. Could this just be indicative of general improvement due to improved motivation or familiarity with the task? Some reassurance may be provided in cases where there was improvement on the third person singular but not on the possessive - this was the case for participants 1, 14 and 22. However, participant 19 improved on all three morpheme types, and so their results look more compatible with a general non-specific improvement, rather than a selective effect of intervention.
 
 Overall, of the ten children in group N, six showed the kind of selective improvement with past tense morphemes that would indicate a genuine effect of intervention;  three showed improvement both on trained and untrained morphemes that suggested a generalised improvement due to factors such as motivation or attention, and one showed no evidence of improvement with training. 
+
 Of the ten children in group T, five showed selective improvement on -ed morphemes relative to possessive morphemes, three did not show improvement, and the remaining two showed evidence of mild improvement on both trained and untrained morephemes. In addition three children showed some evidence of generalisation to a related morpheme (3rd person singular) that was not accounted for by general improvement across the board. 
 
+## Digression to check impact of correlation between data points on ES measure. 
+The main reason why regular parametric statistics are deemed unsuitable for evaluating effect size for individual cases is because data points are not independent.  
+A reasonable way of simulating data from baseline and post-intervention phases would be to treat data as a time-series with autocorrelation between points: a subset of points are designated as baseline, and another subset as post-intervention. An effect of intervention is simulated by adding a constant to all the post-intervention points. In the example of Calder et al, the number of points in each phase is as low as 2. 
+
+```{r mvrnormfunction}
+makedat <- function(p,seq1,seqby,nsim,ES){
+
+maxlength<-10 #we'll create a seq of correlations, but then just take the first p values to input into mvrnorm. This way the range will be similar regardless of npts
+#make covariance matrix
+mycors <-seq(seq1,by=seqby,length.out=p) #this specifies degree of correlation between values, depending on lag between them. 
+#Can start with value less than 1 as 1 is inserted on diagonal below in any case
+mycors[mycors<0]<-0 #any neg values are set to zero
+mycors[1]<-1 #variance for any one value set to 1 as these are zscores
+
+mycov <- matrix(rep(mycors,p),nrow=p) #dummy values to initialise
+
+for (i in 1:p){
+  for (j in 1:p){
+    d <- abs(i-j)+1
+    mycov[i,j]<-mycors[d]
+  }
+}
+
+
+#create dataset
+mydat <- mvrnorm(n=nsim,mu=rep(0,p),Sigma=mycov)
+myrange1<-1:(p/2)
+myrange2<-((p/2)+1):p
+mydat<-data.frame(mydat)
+mydat[,myrange2]<-mydat[,myrange2]+ES
+
+#initialise cols
+mydat$ES_BS<-mydat$p<-mydat$t<-mydat$sdpooled<-mydat$sd2<-mydat$sd1<-mydat$mean2<-mydat$mean1<-NA
+
+for (i in 1:nsim){
+mydat$mean1[i]<-rowMeans(mydat[i,myrange1])
+mydat$mean2[i]<-rowMeans(mydat[i,myrange2])
+mydat$sd1[i]<-sd(mydat[i,myrange1])
+mydat$sd2[i]<-sd(mydat[i,myrange2])
+mydat$sdpooled[i]<-sqrt((mydat$sd1[i]^2+mydat$sd2[i]^2)/2)
+mydat$t[i] <- t.test(mydat[i,myrange1],mydat[i,myrange2],alternative="less")$statistic
+mydat$p[i] <- t.test(mydat[i,myrange1],mydat[i,myrange2],alternative="less")$p.value
+mydat$ES_BS[i]<-(mydat$mean2[i]-mydat$mean1[i])/mydat$sdpooled[i]
+} #last i
+
+return(mydat)
+}
+```
+
+```{r autocorrelcheck,echo=F}
+
+#use mvrnorm, where correlation declines across lags
+
+#Seems best to work in zscore units - can then transform at the end
+
+runsim<-1 #this can be slow so explicitly set flag to do it.
+if(runsim==1){
+nsim <- 500
+
+trueES <- c(0,.5,1,2) #ES in zscore units
+npts <- c(4,10) #make large enough to check for correlation
+allseq1<-c(.8, .6) #specifies first correlation between  values - this is diag values, so we will substitute 1; first adjacent corr will be allseq1 + allseqby
+allseqby<-c(-.1,-.2) #specifies diff in correlations bewteen values at each lag
+bigdf<-expand.grid(npts=npts,seq1=allseq1,seqby=allseqby,trueES=trueES)
+bigdf$nsim<-NA
+bigdf$medr_lag1<-NA
+bigdf$medr_lag2<-NA
+bigdf$sigp<- bigdf$meanES<- bigdf$ES_plus2<- bigdf$ES_plus3<-NA
+
+thisrow<-0
+for (p in npts){
+    for (ES in trueES){
+     for (seq1 in allseq1){
+      for (seqby in allseqby){
+        thisrow<-thisrow+1
+mydf<-makedat(p,seq1,seqby,nsim,ES)
+
+      corlist1 <- corlist2<-vector()
+      for (q in 1:(p-1)){
+        corlist1 <- c(corlist1, cor(mydf[,q],mydf[,(q+1)]))
+      }
+         for (q in 1:(p-2)){
+        corlist2 <- c(corlist2, cor(mydf[,q],mydf[,(q+2)]))
+         }
+      bigdf$trueES[thisrow]<-ES
+      bigdf$nsim[thisrow] <-nsim
+      bigdf$medr_lag1[thisrow]<-median(corlist1)
+      bigdf$medr_lag2[thisrow]<-median(corlist2)
+      bigdf$sigp[thisrow]<-length(which(mydf$p<.05))/nsim
+       bigdf$meanES[thisrow]<-mean(mydf$ES_BS)
+       bigdf$ES_plus2[thisrow]<-length(which(mydf$ES_BS>2))/nsim
+       bigdf$ES_plus3[thisrow]<-length(which(mydf$ES_BS>3))/nsim
+       bigdf$npts[thisrow]<- p #although this was populated by expand grid, it's as well to put it in explicitly to make sure we have got right sequence
+       bigdf$seq1[thisrow]<- seq1
+       bigdf$seqby[thisrow]<- seqby
+      } #last ES
+    } #last seq1
+  } #last seq2
+} #last p
+
+#myacf<-acf(mydf[,2:(p+1)],plot=F,lag.max=0)
+
+filename<-paste0('bigdat_nsim',nsim,'.rds')
+saveRDS(bigdf, file = filename)
+}
+
+for (i in 1:p){
+  print(sd(mydf[,(i+1)]))
+}
+#Some plots to try and understand pattern of results
+plot(bigdf$trueES,bigdf$meanES,col=as.factor(bigdf$npts))
+#True ES is bigger than observed mean ES - why?
+bigdf$corrcond<-as.factor(100*bigdf$seq1+10*abs(bigdf$seqby))
+myp <- ggplot(bigdf, aes(trueES, meanES)) + geom_point()
+myp<-myp+geom_abline(intercept = 0, slope = 1, 
+                 linetype="dotted")
+# Use vars() to supply variables from the dataset:
+myp <- myp + facet_grid(rows = vars(npts),cols=vars(corrcond))
+
+myp2 <- ggplot(bigdf, aes(trueES, sigp)) + geom_point()
+myp2<-myp2+geom_hline(yintercept=.05,
+                 linetype="dotted")
+# Use vars() to supply variables from the dataset:
+myp2<-myp2 + facet_grid(rows = vars(npts),cols=vars(corrcond))
+
+```
+
+
+
+p <- 1 #proportion who respond to intervention - useful to set to 1 when doing initial testing
+nsub <- 10 #N per group
+nobs <- 7
+global_trend <- 0.1 #general trend for improvement with time
+growth_range <- c(1,2) #for responders, added growth in intervention period
+growth_error <- c(1,1.5) #for all, range of random variation
+start_range <- c(0,12) #N item correct at timepoint 0
+simcalder <- fabricate(
+  subject = add_level(
+    N = nsub*2,
+    baseline = runif(N, start_range[1],start_range[2]), #units are items correct
+    baselineCon = runif(N, start_range[1],start_range[2]), #different baseline for control items
+    growth_units = runif(N, growth_range[1],growth_range[2]),
+    growth_error = runif(N, growth_error[1],growth_error[2]), #this is same for both trained and control
+    responder = rbinom(N, 1, p),
+    group= c(rep(1,nsub),rep(2,nsub)) 
+  ),
+   observation = add_level(
+    N= nobs,
+    timept = 0:(nobs-1),
+    untreated_outcome = baseline + (timept * global_trend) + rnorm(N, sd=growth_error),
+    untreated_outcomeCon = baselineCon+ (timept * global_trend) + rnorm(N, sd=growth_error) #this is control outcome
+  )
+)
+simcalder$treated <- 0
+
+
+```
 
 
 ## Using the MIDA framework with a pre-post SCED  
