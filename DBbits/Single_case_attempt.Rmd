@@ -12,6 +12,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 #options(digits=2)
 library(knitr)
+library(here)
 library(kableExtra)
 library(gridExtra)
 library(DeclareDesign)
@@ -28,9 +29,118 @@ library(MASS)
 
 ## Single case experimental designs (SCEDs)
 
-In some disciplines, notably those where intervention is used with populations that are highly heterogeneous, single case experimental designs (SCEDs) are a set of procedures that are widely used in preference to randomised controlled trials (RCTs). At the extremes, these are radically different approaches to evaluating an intervention, using within-subjects versus between-subjects analyses respectively. The term 'single case' can be misleading; SCEDs are not case reports; they use experimental control and often involve more than one participant, creating a case series. The emphasis, however, is on individual outcomes rather than the group average. 
+In some disciplines, notably those where intervention is used with populations that are highly heterogeneous, single case experimental designs (SCEDs) are a set of procedures that are widely used in preference to randomised controlled trials (RCTs). These are different approaches to evaluating an intervention, using within-subjects versus between-subjects analyses respectively. The term 'single case' can be misleading; SCEDs are not case reports; they use experimental control and often involve more than one participant, creating a case series. The emphasis, however, is usually on individual outcomes rather than the group average. 
 
 @best2019 compared the advantages and disadvantages of the two approaches, noting differences in cost and scale (substantially larger for RCTs), as well as different approaches to experimental controls - via use of a control group in RCTs, as opposed to contrasts between time periods or outcome measures in SCEDs. Best noted the differing conclusions that can be drawn from RCTs, where "If a difference between groups is found, this is in the group average; the intervention is not necessarily beneficial for all those that are treated", as opposed to SCEDs, where "The findings are applicable on a case by case basis and are analysed for each participant separately."  
+
+There is a wide range of experimental designs used with single cases. In general, they involve comparing an outcome measure across different phases of a trial - minimally a baseline phase and an intervention phase. A sample dataset from @parker2011 is shown in Figure 1.
+
+```{r parkerdata}
+dat <- c(2, 3, 5, 3, 4, 5, 5, 7, 6)
+phase <- c(0,0,0,0,1,1,1,1,1)
+plot(dat,xlim=c(1,9),ylim=c(0,7),type='n',xlab='Session',ylab='Outcome score',xaxp = c(1, 9, 8),main='Single case data')
+lines(1:4,dat[1:4],type='b',pch=15)
+lines(5:9,dat[5:9],type='b',pch=15)
+abline(v=4.5)
+text(3,6,'Baseline')
+text(6,6,'Intervention')
+tparker <- t.test(dat[1:4],dat[5:9],alternative='less')
+```
+This simple dataset illustrates some of the problems in interpreting single case data from a study of this kind. Just on the basis of visual inspection, it looks as if the intervention was effective: the scores increase during the intervention period, and during this period they are higher than all but one of the baseline scores. However, the baseline scores are quite noisy: indeed if we had only sessions 1-3, we would argue that there is an upward trend similar to that seen with intervention. We might be tempted to compare the set of baseline scores with the intervention scores on a one-tailed t-test: if we did that we would find that the t-value was `r round(abs(tparker$statistic,2))` with associated p-value of `r round(tparker$p.value,3)`, and conclude that there was good evidence for effectiveness of the intervention in this individual. However, this approach to analysis and interpretation is misguided for two reasons.  
+
+First, the t-test is only valid if the datapoints are independent. These data all come from the same person, and form a time-series, so they do not meet this assumption. This might seem like a statistician's quibble, but it has serious consequences. If datapoints are not independent then the p-values returned from the t-test are likely to be exaggerated and so give unwarranted confidence in the difference.
+
+Second, even if the statistical comparison between the two intervals was valid, it would only indicate intervention efficacy if there was no other reason for scores to improve over time. The argument here is exactly the same as those used when considering the need for a control group in a randomized controlled trial - without a control group, you can't be sure that the change you observe is due to the intervention, rather than to more general factors, such as the person becoming more familiar with test situation, or having positive expectations from the intervention that makes them more motivated. In the case of children, some improvement may be due just to general maturation, or to impact of concurrent education. 
+
+Several methods can be used to control for such general reasons for improvement:
+
+* If the baseline is flat over a series of measurements, this is generally regarded as reasonable evidence that improvement in the intervention period reflects a genuine treatment effect  
+
+* As well as measuring improvement on a treated outcome, the study can incorporate another outcome measure that is not expected to improve. If improvement is seen only in the treated outcome measure, this gives more confidence in the effect.  
+
+* If a series of cases is studied, then the timing of intervention can be varied across cases. The prediction, if intervention is effective, is that improvement will be more associated with whether or not intervention has occurred, rather than with the specific time point of measurement.  
+
+```{r calder9}
+mycaldloc <- here("DBbits", "Calder", "calder_9cases.csv")
+calder9 <- read.csv(mycaldloc)
+calder9a<-calder9
+for (i in 2:nrow(calder9)){
+  for (j in 3:ncol(calder9)){
+    calder9a[i,j]<-calder9[i,j]/calder9[1,j]
+  }
+}
+calder9A <- filter(calder9a,is.na(A4))
+calder9A <-calder9A[,-c(6:9)]
+colnames(calder9A)[6:7]<-c('A4','A5')
+
+calder9B <- filter(calder9a,is.na(A6),A4>-1)
+calder9B <-calder9B[,-c(8:9)]
+colnames(calder9B)[8:9]<-c('A6','A7')
+
+calder9C <- filter(calder9a,A4>-1,A6>-1)
+calder9C <- calder9C[-1,]
+colnames(calder9C)[10:11]<-c('A8','A9')
+
+
+mymorph <- c('ed','3s','poss')
+for (m in 1:3){
+calder9Am <- filter(calder9A,morpheme==mymorph[m])
+calder9Bm<- filter(calder9B,morpheme==mymorph[m])
+calder9Cm <- filter(calder9C,morpheme==mymorph[m])
+
+
+#compute means and put in row 4
+
+caldermeans<-function(calderfile){
+caldertemp<-calderfile
+caldertemp[4,]<-caldertemp[1,] #make dummy row 4 by duplication
+caldertemp[4,1]<-'Mean'
+caldertemp[4,3:ncol(caldertemp)]<-colMeans(caldertemp[1:3,3:ncol(caldertemp)])
+return(caldertemp)
+}
+
+calder9Am<-caldermeans(calder9Am)
+calder9Bm<-caldermeans(calder9Bm)
+calder9Cm<-caldermeans(calder9Cm)
+
+#function for plot
+calderplot<-function(calderfile){
+ startcol<-which(colnames(calderfile)=='A1') 
+ midcol<-which(colnames(calderfile)=='B2')
+ midcol2<-which(colnames(calderfile)=='B10')
+ endcol <- ncol(calderfile)
+
+ #set up blank plot to add lines to 
+plot(1:(endcol-2),calderfile[1,startcol:endcol],xlim=c(1,(endcol-2)),ylim=c(0,1),type='n',xlab='Session',ylab='Outcome score',xaxp = c(1, (endcol-2), (endcol-3)),
+     main=mymorph[m])
+for (r in 1:4){ #plot individual rows
+  mywd <-1
+  mycol<- c('blue','green','red','black')
+  if(r==4){mywd <- 2}
+lines(1:(midcol-3),calderfile[r,startcol:(midcol-1)],type='b',col=mycol[r],lwd=mywd)
+lines((midcol-2):(midcol2-2),calderfile[r,midcol:midcol2],type='b',col=mycol[r],lwd=mywd)
+lines((midcol2-1):(endcol-2),calderfile[r,(midcol2+1):endcol],type='b',col=mycol[r],lwd=mywd)
+}
+abline(v=midcol+.5-3)
+abline(v=midcol2+.5-2)
+text(3,6,'Baseline')
+text(7,6,'Intervention')
+text((endcol-4),6,'Maintenance')
+}
+par(mfrow=c(1,3))
+calderplot(calder9Am)
+calderplot(calder9Bm)
+calderplot(calder9Cm)
+}
+
+```
+
+
+## Analysis methods  
+
+
+
+## Comparison of methods
 
 This kind of weighing up of pros and cons of different experimental designs is precisely what DeclareDesign aims to do, within a formal framework that requires specification of the underlying assumptions of different approaches, and uses simulated data to compare them on a set of criteria specified by the researcher. The goal is to evaluate designs so that they can be optimised for a given research question. This becomes particularly interesting when one considers that the polarised distinction between RCTs and SCEDs is not absolute, and there is growing interest in combining aspects of the two approaches in hybrid designs.  
 
@@ -405,6 +515,15 @@ myp2<-myp2+geom_hline(yintercept=.05,
                  linetype="dotted")
 # Use vars() to supply variables from the dataset:
 myp2<-myp2 + facet_grid(rows = vars(npts),cols=vars(corrcond))
+
+myp3 <- ggplot(bigdf, aes(trueES, ES_plus3)) + geom_point()
+# Use vars() to supply variables from the dataset:
+myp3<-myp3 + facet_grid(rows = vars(npts),cols=vars(corrcond))
+
+
+myp4 <- ggplot(bigdf, aes(trueES, ES_plus2)) + geom_point()
+# Use vars() to supply variables from the dataset:
+myp4<-myp4 + facet_grid(rows = vars(npts),cols=vars(corrcond))
 
 ```
 
