@@ -25,7 +25,9 @@ require(ROCit) #for ROC analysis
 library("gridExtra")
 library(cowplot)
 library(MASS)
+library(car) #needed for Durbin-Watson
 ```
+
 
 ## Single case experimental designs (SCEDs)
 
@@ -46,21 +48,140 @@ text(3,6,'Baseline')
 text(6,6,'Intervention')
 tparker <- t.test(dat[1:4],dat[5:9],alternative='less')
 ```
-This simple dataset illustrates some of the problems in interpreting single case data from a study of this kind. Just on the basis of visual inspection, it looks as if the intervention was effective: the scores increase during the intervention period, and during this period they are higher than all but one of the baseline scores. However, the baseline scores are quite noisy: indeed if we had only sessions 1-3, we would argue that there is an upward trend similar to that seen with intervention. We might be tempted to compare the set of baseline scores with the intervention scores on a one-tailed t-test: if we did that we would find that the t-value was `r round(abs(tparker$statistic,2))` with associated p-value of `r round(tparker$p.value,3)`, and conclude that there was good evidence for effectiveness of the intervention in this individual. However, this approach to analysis and interpretation is misguided for two reasons.  
+This simple dataset illustrates some of the problems in interpreting single case data from a study of this kind. Just on the basis of visual inspection, it looks as if the intervention was effective: the scores increase during the intervention period, and during this period they are higher than all but one of the baseline scores. However, the baseline scores are quite noisy.  
 
-First, the t-test is only valid if the datapoints are independent. These data all come from the same person, and form a time-series, so they do not meet this assumption. This might seem like a statistician's quibble, but it has serious consequences. If datapoints are not independent then the p-values returned from the t-test are likely to be exaggerated and so give unwarranted confidence in the difference.
+We might be tempted to compare the set of baseline scores with the intervention scores on a one-tailed t-test: if we did that we would find that the t-value was `r round(abs(tparker$statistic,2))` with associated p-value of `r round(tparker$p.value,3)`, and conclude that there was good evidence for effectiveness of the intervention in this individual. However, this approach to analysis and interpretation is problematic for three reasons.  
 
-Second, even if the statistical comparison between the two intervals was valid, it would only indicate intervention efficacy if there was no other reason for scores to improve over time. The argument here is exactly the same as those used when considering the need for a control group in a randomized controlled trial - without a control group, you can't be sure that the change you observe is due to the intervention, rather than to more general factors, such as the person becoming more familiar with test situation, or having positive expectations from the intervention that makes them more motivated. In the case of children, some improvement may be due just to general maturation, or to impact of concurrent education. 
+1. First, a t-test assumes that data are normally distributed, and this is often not the case for data from SCEDs, as for instance, when scores on outcome measures are skewed. As @senn2008 noted, failure to meet this assumption is unlikely to generate spurious evidence of an intervention effect, but it may mask a true effect. For this reason, non-parametric methods are often preferred, typically methods that quantify the amount of overlap between data-points from baseline and intervention phases. 
+
+2. Second, the t-test is only valid if the data-points are independent. This might seem like a statistician's quibble, but it has serious consequences. If data-points are not independent then the p-values returned from the t-test are likely to be exaggerated and so give unwarranted confidence in the difference (@senn2008). This issue is _not_ fixed by using a non-parametric test.  
+
+One case when lack of independence is observed is if there is a temporal trend in baseline data - e.g. if improvement is already seen before intervention occurs. There have been several suggestions for ways of adjusting data to correct for a trend, but where there is only a handful of datapoints, as in Figure 1,  the validity of such approaches is questionable. For instance, in Figure 1, if we only had three datapoints at baseline, we might assume there is an upward trend, but with a fourth point, the trend is less believable.  
+
+Note too that independence of datapoints is not ensured just because there is no upward or downward trend: the key issue is whether similarity between datapoints is influenced by their temporal order. A Durbin-Watson statistic can be used to test for independence of datapoints within a series, but in small samples it is only sensitive to extremely large departures from independence.  
+
+3. Most importantly, even if the statistical comparison between the two intervals was valid, it would indicate intervention efficacy only if there was no other reason for scores to improve over time. The argument here is exactly the same as those used when considering the need for a control group in a randomized controlled trial - without a control group, you can't be sure that the change you observe is due to the intervention, rather than to more general factors, such as the person becoming more familiar with test situation, or having positive expectations from the intervention that makes them more motivated. In the case of children, some improvement may be due just to general maturation, or to impact of concurrent education; in those with neurological conditions, recovery may still be occurring.
 
 Several methods can be used to control for such general reasons for improvement:
 
-* If the baseline is flat over a series of measurements, this is generally regarded as reasonable evidence that improvement in the intervention period reflects a genuine treatment effect  
+* _Baseline-intervention comparison_: If the baseline is flat over a series of measurements, this is generally regarded as reasonable evidence that improvement in the intervention period reflects a genuine treatment effect; this argument is not completely watertight, as spontaneous improvement may follow a non-linear trend.  In addition, if the data is very noisy, there may be a genuine trend that is not readily detectable.  
 
-* As well as measuring improvement on a treated outcome, the study can incorporate another outcome measure that is not expected to improve. If improvement is seen only in the treated outcome measure, this gives more confidence in the effect.  
+* _Staggered baseline_: One way to give confidence in a baseline vs post-intervention comparison is to have a series of cases where the timing of intervention is varied. The prediction, if intervention is effective, is that improvement will be more associated with whether or not intervention has occurred, rather than with the specific time point of measurement. We will consider an example of this type below. 
 
-* If a series of cases is studied, then the timing of intervention can be varied across cases. The prediction, if intervention is effective, is that improvement will be more associated with whether or not intervention has occurred, rather than with the specific time point of measurement.  
+* _Control outcome measure_: As well as measuring improvement on a treated outcome, the study can incorporate another outcome measure that is not expected to improve - a control measure. If improvement is seen only in the treated outcome measure, this gives more confidence in the effect. It is important to ensure that the control measure and treated measure are similarly sensitive. To take an extreme example, if we measured the impact of a diet on weight, and used height as a control measure, we could readily show that the diet had a selective effect on weight, but this would not be meaningful as height is not modifiable.  
 
-```{r calder9}
+### An example study: Calder et al, 2020  
+
+A study by @calder2020 used a complex single case design that incorporated all the features discussed above. This was a study of a grammatical intervention applied to nine language-disordered children. All children tended to omit past-tense grammatical morphemes (-ed) on verbs, and the training was designed to improve their ability to do this. Morpheme production was measured in a series of baseline sessions, and then during a series of intervention sessions. Children were divided into three groups, differing in the duration of the baseline period (5, 7 or 9 trials).  
+
+Numerous outcome measures were assessed in this study, but here we focus on the main outcome of interest - ability to produce grammatical morphemes. During the intervention, the researchers measured accuracy on the trained -ed morphemes - both within the training session, and, on the same verbs, at a later session.  They also assessed accuracy of the -ed morpheme with new verbs.  Ability to generalise the trained knowledge in this way is a treatment goal, and in reporting the results here, we will focus largely on this evidence of having learned a general rule, rather than verb-specific knowledge.  
+
+The study also involved assessment of ability to use untrained morphemes. One of these was the possessive 's, denoting ownership, e.g. "the boy's car". This is a control morpheme, which is important in providing evidence for a specific effect of intervention. If we can show that there is no improvement on possessive 's, while there is improvement on -ed, this is strong evidence that the intervention was effective, allowing us to reject explanations in terms of general maturation, task familiarity and so on. 
+
+Another untrained morpheme was the 3rd person singular -s morpheme used on verbs - e.g. "he goes".  Although children were not explicitly trained to produce this morpheme, the therapist provided examples of it during training, as a contrast with the -ed ending. The status of this outcome measure is rather ambiguous - it cannot be treated as a control outcome, as there are reasons to expect the intervention might lead to improvement; the researches used it as a "extension probe" - arguing that it could provide evidence that the intervention had a broad effect on understanding of verb morphology. 
+
+We can see, then, that there is something of a hierarchy of evidence available in the measures from this study:  
+
+A) -ed on trained within-session verbs
+B) -ed on trained between-session verbs 
+C) -ed on untrained verbs
+D) 3rd person 's (extension probe)
+E) possessive 's. (control probe)
+
+Evidence for intervention effectiveness would be to see improvement from baseline to intervention on A-C, and no improvement on D-E.  
+In addition, if there was improvement on A-D but none on E, this would also indicate a intervention effect, with extension beyond the treated skill.  
+
+Improvement on all measures, A-E, would suggest that this was not an intervention effect, but rather some general improvement.  
+
+@calder2020 did a detailed analysis of their results, but we will redo the analysis here, using a different measure of effect size, and also comparing more directly the evidence from measures A-E.  
+
+
+
+
+
+
+
+
+```{r readcalder9morph, echo=F}
+meas<-c('between','within')
+for (measure in 1:2){ #trained include between and within session items
+mycaldloc <- here("DBbits", "Calder", "calder_9cases_trained.csv") 
+if(measure==1){
+  mycaldloc <- here("DBbits", "Calder", "calder_9cases_trained_b.csv")
+  }
+calder9t <- read.csv(mycaldloc)
+calder9a<-calder9t
+for (i in 2:nrow(calder9t)){
+  for (j in 3:ncol(calder9t)){
+    calder9a[i,j]<-calder9t[i,j]/calder9t[1,j]
+  }
+}
+
+#shuffle down columns with missing data
+jrange<-12:ncol(calder9a)
+shortrange<-12:(ncol(calder9a)-1)
+for (i in 2:nrow(calder9a)){
+   w<-which(is.na(calder9a[i,jrange]))
+   if(length(w)>0){
+     jjrange<-jrange[-w]
+     calder9a[i,shortrange]<-calder9a[i,jjrange]
+   }
+}
+
+calder9A_w <- filter(calder9a,is.na(A4))
+calder9A_w <-calder9A_w[,-c(6:9)]
+colnames(calder9A_w)[6:7]<-c('A4','A5')
+
+calder9B_w <- filter(calder9a,is.na(A6),A4>-1)
+calder9B_w <-calder9B_w[,-c(8:9)]
+colnames(calder9B_w)[8:9]<-c('A6','A7')
+
+calder9C_w <- filter(calder9a,A4>-1,A6>-1)
+calder9C_w <- calder9C_w[-1,]
+colnames(calder9C_w)[10:11]<-c('A8','A9')
+
+#only -ed morpheme here
+
+
+#function for plot
+calderplot<-function(calderfile,mylabel){
+ startcol<-which(colnames(calderfile)=='A1') 
+ midcol<-which(colnames(calderfile)=='B1')
+ endcol<-which(colnames(calderfile)=='B10')
+
+
+ #set up blank plot to add lines to 
+  mypch<- 0:2
+plot(1:(endcol-2),calderfile[1,startcol:endcol],xlim=c(1,(endcol-2)),ylim=c(0,1),type='n',xlab='Session',ylab='% Correct ed',xaxp = c(1, (endcol-2), (endcol-3)),
+     main=mylabel)
+for (r in 1:3){ #plot individual rows 
+
+
+lines(1:(midcol-3),calderfile[r,startcol:(midcol-1)],type='b',pch=mypch[r])
+lines((midcol-2):(endcol-2),calderfile[r,midcol:endcol],type='b',pch=mypch[r])
+
+}
+abline(v=midcol+.5-3)
+
+text(3,1,'Baseline')
+text(13,1,'Intervention')
+
+}
+#par(mfrow=c(1,3))
+calderplot(calder9A_w,mylabel=paste0('Group 1_',meas[measure]))
+calderplot(calder9B_w,mylabel=paste0('Group 2_',meas[measure]))
+calderplot(calder9C_w,mylabel=paste0('Group 3_',meas[measure]))
+if(measure==1){
+  calder9A_b<-calder9A_w
+  calder9B_b<-calder9B_w
+  calder9C_b<-calder9C_w
+}
+}
+
+
+```
+
+```{r calder9_untrainedmorph}
 mycaldloc <- here("DBbits", "Calder", "calder_9cases.csv")
 calder9 <- read.csv(mycaldloc)
 calder9a<-calder9
@@ -83,10 +204,10 @@ colnames(calder9C)[10:11]<-c('A8','A9')
 
 
 mymorph <- c('ed','3s','poss')
-for (m in 1:3){
-calder9Am <- filter(calder9A,morpheme==mymorph[m])
-calder9Bm<- filter(calder9B,morpheme==mymorph[m])
-calder9Cm <- filter(calder9C,morpheme==mymorph[m])
+for (m in 1:3){ #range 1:3 for all 3 morphemes
+calder9A_u <- filter(calder9A,morpheme==mymorph[m])
+calder9B_u<- filter(calder9B,morpheme==mymorph[m])
+calder9C_u <- filter(calder9C,morpheme==mymorph[m])
 
 
 #compute means and put in row 4
@@ -99,9 +220,9 @@ caldertemp[4,3:ncol(caldertemp)]<-colMeans(caldertemp[1:3,3:ncol(caldertemp)])
 return(caldertemp)
 }
 
-calder9Am<-caldermeans(calder9Am)
-calder9Bm<-caldermeans(calder9Bm)
-calder9Cm<-caldermeans(calder9Cm)
+calder9A_u<-caldermeans(calder9A_u)
+calder9B_u<-caldermeans(calder9B_u)
+calder9C_u<-caldermeans(calder9C_u)
 
 #function for plot
 calderplot<-function(calderfile){
@@ -113,9 +234,9 @@ calderplot<-function(calderfile){
  #set up blank plot to add lines to 
 plot(1:(endcol-2),calderfile[1,startcol:endcol],xlim=c(1,(endcol-2)),ylim=c(0,1),type='n',xlab='Session',ylab='Outcome score',xaxp = c(1, (endcol-2), (endcol-3)),
      main=mymorph[m])
-for (r in 1:4){ #plot individual rows
+for (r in 1:3){ #plot individual rows - make range 1:4 to include mean as well
   mywd <-1
-  mycol<- c('blue','green','red','black')
+ mycol<- c('blue','green','red','black')
   if(r==4){mywd <- 2}
 lines(1:(midcol-3),calderfile[r,startcol:(midcol-1)],type='b',col=mycol[r],lwd=mywd)
 lines((midcol-2):(midcol2-2),calderfile[r,midcol:midcol2],type='b',col=mycol[r],lwd=mywd)
@@ -127,16 +248,229 @@ text(3,6,'Baseline')
 text(7,6,'Intervention')
 text((endcol-4),6,'Maintenance')
 }
-par(mfrow=c(1,3))
-calderplot(calder9Am)
-calderplot(calder9Bm)
-calderplot(calder9Cm)
+#par(mfrow=c(1,3))
+calderplot(calder9A_u)
+calderplot(calder9B_u)
+calderplot(calder9C_u)
 }
 
 ```
 
-
 ## Analysis methods  
+A useful source for effect sizes that can be used to analyse single cases can be found here: 
+https://cran.r-project.org/web/packages/SingleCaseES/vignettes/Effect-size-definitions.html  
+
+@calder2020 used the nonparametric __tau-U__ measure to compare baseline and intervention phases, using a version of this statistics that corrects for a linear trend in baseline data. However, if there is evidence of trend in the baseline, then one cannot know if it is linear or not, especially with a small dataset, and it would seem better to select a baseline measure that does not show such a trend. In the current analysis, therefore, the focus is on an uncorrected measure, combined with a rough check of independence of data points in the baseline.  
+
+As @pustejovsky2021 noted, tau is a linear transform of the nonoverlap of all pairs (NAP) measure [@parker2009], which is simply measured by taking all pairs of baseline and intervention datapoints, and computing the proportion where the intervention score is higher than the baseline score (or lower, if the goal of treatment is to reduce scores). Here we use NAP to evaluate intervention effects on measures A-E for the 9 individual cases of @calder2020. 
+
+
+
+
+```{r NAP_JEP, echo=F}
+#compute NAP using James Pustejovsky function
+do_NAP <- function(XY){
+  nap <- round(100 * mean(with(XY, (y > x) + 0.5 * (y == x))),2)
+return(nap)
+}
+```
+
+```{r DurbinWatson, echo=F}
+
+doDW<-function(yy){
+n<-length(yy)
+xx<-1:n
+model<-lm(yy~xx)
+dw<-durbinWatsonTest(model)
+
+return(dw)
+}
+
+```
+
+```{r makebigresults,echo=F}
+#prepare data frame for results of all comparisons
+
+bigresults<-data.frame(matrix(NA,nrow=9,ncol=14))
+colnames(bigresults)<-c('ID','nbase','AC_DWautor','AC_DWp','D_DWautor','D_DWp','E_DWautor','E_DWp','A_tr_w_NAP','B_tr_b_NAP','C_utr_NAP','D_ext_3s_NAP','E_con_poss_NAP','pattern')
+
+
+```
+
+```{r calder9_results, echo=F}
+#make single df with all cases aligned
+#ad hoc wrangling given the different n trials for different subgroups
+#This is done once for each measure - pull out summary stats in bigresults file later
+for (measure in 1:2){
+#start with group C as they have longest run of data
+    if(measure==2){ #within subjects
+myresults <- calder9C_w[,-ncol(calder9C_w)]
+
+myresults[4:9,]<-NA
+myresults[4:6,1:7]<-calder9A_w[,1:7]
+myresults[4:6,12:21]<-calder9A_w[,8:17]
+
+myresults[7:9,1:9]<-calder9B_w[,1:9]
+myresults[7:9,12:21]<-calder9B_w[,10:19]
+  }
+
+  if(measure==1){ #between subjects
+myresults <- calder9C_b[,-ncol(calder9C_b)]
+
+myresults[4:9,]<-NA
+myresults[4:6,1:7]<-calder9A_b[,1:7]
+myresults[4:6,12:21]<-calder9A_b[,8:17]
+
+myresults[7:9,1:9]<-calder9B_b[,1:9]
+myresults[7:9,12:21]<-calder9B_b[,10:19]
+  }
+
+myresults$nbase<-c(9,9,9,5,5,5,7,7,7)
+myresults$DWp<-myresults$DWac <- myresults$nap<- NA
+row.names(myresults)<-1:9
+
+#now compute nap for baseline vs intervention
+for (i in 1:nrow(myresults)){
+ mydat <- data.frame(t(myresults[i,3:ncol(myresults)])) #make long form file for this subject
+ colnames(mydat)<-'score'
+  base<-1:myresults$nbase[i]
+  interv<-10:19
+  df<-expand.grid(base,interv)
+ df$y<- df$x<-NA
+  for (j in 1:nrow(df)){
+    xnum<-df$Var1[j]
+    ynum<-df$Var2[j]
+     df$x[j] <- mydat$score[xnum]
+     df$y[j] <- mydat$score[ynum]
+  }
+  myresults$nap[i]<- do_NAP(df)
+  yy <- as.numeric(mydat[base,])
+  dw<- doDW(yy)
+  myresults$DWac[i] <-dw$r
+  myresults$DWp[i] <-dw$p
+}
+
+myresults<-myresults[order(myresults$X),]
+if(measure==1)
+{myresults_b <- myresults}
+}
+
+bigresults$ID<-myresults$X
+bigresults$nbase<-myresults$nbase
+bigresults$A_tr_w_NAP<-myresults$nap
+bigresults$B_tr_b_NAP<-myresults_b$nap
+bigresults$AC_DWautor<-myresults$DWac
+bigresults$AC_DWp<-myresults$DWp
+
+```
+
+```{r untrainedresults,echo=F}
+myresults_u <- calder9a[-1,]
+
+#For these conditions, we start with B2, and there is also another set of A measures, which we will ignore. 
+bcol1<-which(colnames(myresults_u)=='B2')
+bcol2<-which(colnames(myresults_u)=='B10')
+
+
+#now compute nap for baseline vs intervention
+thisrow<-0
+for (m in 1:3){ #repeat for each morpheme
+  
+for (i in 1:9){
+  thisrow<-thisrow+1
+ mydat <- data.frame(t(myresults_u[thisrow,3:bcol2])) #make long form file for this subject
+ colnames(mydat)<-'score'
+ w<-which(is.na(mydat$score))
+ if(length(w)>0){
+ mydat <- mydat[-w,] 
+ }
+ if(length(w)==0){
+ mydat<-as.numeric(mydat[,1]) #clunky++ ; for some reason deleting rows from mydat makes it numeric and so if none deleted, have to explicitly make it numeric...
+ }
+  base<-1:bigresults$nbase[i]
+  interv<-(bigresults$nbase[i]+1):(bigresults$nbase[i]+9)
+  df<-expand.grid(base,interv)
+ df$y<- df$x<-NA
+  for (j in 1:nrow(df)){
+    xnum<-df$Var1[j]
+    ynum<-df$Var2[j]
+     df$x[j] <- mydat[xnum]
+     df$y[j] <- mydat[ynum]
+  }
+  myresults_u$nap[thisrow]<- do_NAP(df)
+  yy <- mydat[base]
+  dw<- doDW(yy)
+  myresults_u$DWac[thisrow] <-dw$r
+  myresults_u$DWp[thisrow] <-dw$p
+}
+
+}
+
+
+bigresults$D_DWautor<-myresults_u$DWac[10:18]
+bigresults$D_DWp<-myresults_u$DWp[10:18]
+bigresults$E_DWautor<-myresults_u$DWac[19:27]
+bigresults$E_DWp<-myresults_u$DWp[19:27]
+
+bigresults$C_utr_NAP<-myresults_u$nap[1:9]
+bigresults$D_ext_3s_NAP<-myresults_u$nap[10:18]
+bigresults$E_con_poss_NAP<-myresults_u$nap[19:27]
+```
+
+Could also recompute NAP with different baseline lengths and check if it peaks when correct! Will try that with the untreated.  
+This doesn't work, but on reflection, it won't if there is gradual improvement in intervention phase. 
+
+```{r manyNAP,echo=F}
+offsetdf <- data.frame(matrix(NA,nrow=9,ncol=16))
+colnames(offsetdf)<-c('ID','nbase',paste0('nap',3:15),'peak')
+offsetdf[,1:2]<-bigresults[1:9,1:2]
+#Compute NAP for different length of baseline/intervention to see if it peaks at correct point
+#Just do for untrained -ed
+#Use all datapoints but just alter cutpoint. Always have at least 3 points in a phase.
+for (i in 1:9){
+ mydat <- data.frame(t(myresults_u[i,3:bcol2])) #make long form file for this subject
+ colnames(mydat)<-'score'
+ w<-which(is.na(mydat$score))
+ if(length(w)>0){
+ mydat <- mydat[-w,] 
+ }
+ if(length(w)==0){
+ mydat<-as.numeric(mydat[,1]) #clunky++ ; for some reason deleting rows from mydat makes it numeric and so if none deleted, have to explicitly make it numeric...
+ }
+
+ npts <- length(mydat)
+ for (o in 3:(npts-3)){ #o is for offset
+  base<-1:o
+  interv<-(o+1):npts
+  df<-expand.grid(base,interv)
+  df$y<- df$x<-NA
+  for (j in 1:nrow(df)){
+    xnum<-df$Var1[j]
+    ynum<-df$Var2[j]
+     df$x[j] <- mydat[xnum]
+     df$y[j] <- mydat[ynum]
+  } #next j
+  offsetdf[i,o]<- do_NAP(df)
+ }#next o
+ mymax<-max(offsetdf[i,3:15],na.rm=T)[1]
+ offsetdf$peak[i]<- which(offsetdf[i,3:15]==mymax)+2
+}#next i
+bigresults$peak<-offsetdf$peak
+bigresults<-bigresults[order(bigresults$nbase),]
+```
+
+
+## Bit to go somewhere
+
+The focus of single-case methodology is to get away from the idea that we should focus on an average response to intervention, and instead concentrate on individuals. With these methods, is possible to design a study such that we can conclude with reasonable confidence that an intervention was effective for one person. This, however, is rather unsatisfactory. There may be situations when this conclusion is sufficient: for instance, if we have to justify the time and money spent on a treatment. But more commonly, we want to generalise beyond a single case, and to learn from a study whether the intervention is likely to be effective for others. This does not mean that we assume everyone is the same, but we would hope to learn which interventions work with which people.  
+
+To address this, researchers have developed methods of meta-analysis of single case experimental designs. This has generated substantial debate about how to combine information across a series of such studies. Much of this literature has discussed how best to extract an effect size from a single case experiment, so that one can build a picture by combining effect sizes across studies of intervention effectiveness. The meta-analysis however, starts to look more like a conventional group study - albeit one that combines information from variable sources. 
+
+It could be argued that this quantitative approach to evaluating results is misguided, and that instead of estimating effect sizes, it would be preferable to use data from each single case to determine whether or not the intervention was effective. The point of combining data across studies then would be to consider the proportion of cases where the intervention is effective, and, if possible, to identify characteristics of those people for whom it works.
+
+Of course, this raises the further question of what do we mean by an 'effective' intervention. Following the logic commonly used with parametric analysis of group studies, one approach is to use statistical logic to indicate whether the probability that results arose just by chance is low enough to reject the null hypothesis. The problem with that approach is that a result could potentially be statistically significant but not clinically significant: thus there could be measurable improvement that was so small as to be worthless. For instance, suppose we had an intervention designed to reduce stuttering, assessed by the number of dysfluencies per 5 minutes, and in each of 5 baseline measures, there were 100 dyslfluencies, and each of 5 post-intervention measures, there were 99. This would be a highly statistically significant difference, but clinically meaningless. 
+
+This way of framing the question makes it clear that to some extent any question about intervention effectiveness involves both economics and ethics: we should ask whether spending time on the intervention is justified in terms of its costs and benefits, both to the person receiving the intervention and to broader society.  Given that consideration, we might want to go beyond a statistical criterion of effectiveness to include a pragmatic criterion, related to real-world impact. Typically, people have quantified effects in single-case studies in terms of effect sizes, which are abstract units, reflecting the amount of change relative to the amount of random variation in measurement. But for many outcome measures, it could be argued it would be more valuable to have an effect measured in original units - e.g. if someone stutters, does an intervention help them achieve a level of fluency that allows for relaxed conversation. 
 
 
 
@@ -146,7 +480,9 @@ This kind of weighing up of pros and cons of different experimental designs is p
 
 Here I aim to apply the MIDA approach of DeclareDesign to SCEDs. MIDA stands for Model, Inquiry, Data Strategy and Answer Strategy, with the first two elements being theoretical and the second two empirical. This way of conceptualising intervention studies is quite foreign to most researchers, who tend to focus simply on selecting a research design and analytic method. Its value, however, becomes apparent as soon as we look in detail at the comparisons of methods laid out by @best2019, because it allows us to categorise the different aspects of the two study types as belonging to specific parts of the overall research design.  
 
-I will take as my starting point a study by @calder2021.  This is described as a RCT, but can be treated as a hybrid design that grew out of previous SCED studies by the authors on the same topic, evaluating an intervention to help language-disordered children use grammatical endings correctly. The design of the study can be grasped by showing the plot of mean scores for two groups.  
+I will take as my starting point a pair of studies by Calder and colleagues [@calder2020; @calder2021]. Both studies were concerned with evaluating an intervention to help language-disordered children use grammatical endings denoting verb tense. The 2020 study used a classic single case design with nine children.
+
+This is described as a RCT, but can be treated as a hybrid design that grew out of previous SCED studies by the authors on the same topic, evaluating an intervention to help language-disordered children use grammatical endings correctly. The design of the study can be grasped by showing the plot of mean scores for two groups.  
 
 ```{r calderfig,echo=F,eval=F,warning=F,message=F,fig.leg = "Mean % correct for two groups in Calder et al, 2021. Data plotted from Table 2."}
 #Original plot created for intervention book
@@ -389,7 +725,7 @@ In Panel D, data are similar to those in panel C, except that we now consider th
 
 Overall, of the ten children in group N, six showed the kind of selective improvement with past tense morphemes that would indicate a genuine effect of intervention;  three showed improvement both on trained and untrained morphemes that suggested a generalised improvement due to factors such as motivation or attention, and one showed no evidence of improvement with training. 
 
-Of the ten children in group T, five showed selective improvement on -ed morphemes relative to possessive morphemes, three did not show improvement, and the remaining two showed evidence of mild improvement on both trained and untrained morephemes. In addition three children showed some evidence of generalisation to a related morpheme (3rd person singular) that was not accounted for by general improvement across the board. 
+Of the ten children in group T, five showed selective improvement on -ed morphemes relative to possessive morphemes, three did not show improvement, and the remaining two showed evidence of mild improvement on both trained and untrained morephemes. In addition three children showed some evidence of extension to a related morpheme (3rd person singular) that was not accounted for by general improvement across the board. 
 
 ## Digression to check impact of correlation between data points on ES measure. 
 The main reason why regular parametric statistics are deemed unsuitable for evaluating effect size for individual cases is because data points are not independent.  
